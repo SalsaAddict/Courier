@@ -19,10 +19,10 @@ module SUI {
             return false;
         }
     }
-    export function IfBlank(expression: any, defaultValue: any) {
+    export function IfBlank(expression: any, defaultValue: any = null) {
         return (IsBlank(expression)) ? defaultValue : expression;
     }
-    export function Option(expression: string, defaultValue: string): string {
+    export function Option(expression: string, defaultValue: string = ""): string {
         return angular.lowercase(IfBlank(expression, defaultValue)).trim();
     }
     export module Main {
@@ -30,9 +30,9 @@ module SUI {
         export class Controller {
             static $inject: string[] = ["$scope", "$log"];
             constructor(public $scope: IScope, public $log: angular.ILogService) { }
-            private _procedures: { [alias: string]: Procedure.IFactory; } = {};
-            addProcedure = (alias: string, procedureFactory: Procedure.IFactory) => {
-                this._procedures[alias] = procedureFactory;
+            private _procedures: { [alias: string]: Function; } = {};
+            addProcedure = (alias: string, execute: Function) => {
+                this._procedures[alias] = execute;
             }
             removeProcedure = (alias: string) => {
                 if (angular.isDefined(this._procedures[alias])) {
@@ -40,52 +40,68 @@ module SUI {
                 }
             }
             execute = (alias: string) => {
-                this._procedures[alias]().execute();
+                this._procedures[alias]();
             }
         }
     }
     export module Procedure {
-        export interface IProcedure {
-            name: string;
-            parameters: Parameter.IParameter[];
-            type: string;
-        }
-        export interface IFactory {
-            (): IProcedure;
-        }
         export interface IScope extends angular.IScope {
             name: string;
+            alias: string;
+            model: string;
             type: string;
+            root: string;
             run: string;
-            factory: IFactory;
         }
         export class Controller {
-            static $inject: string[] = ["$scope", "$log"];
-            constructor(public $scope: IScope, public $log: angular.ILogService) { }
+            static $inject: string[] = ["$scope", "$parse", "$log"];
+            constructor(
+                public $scope: IScope,
+                public $parse: angular.IParseService,
+                public $log: angular.ILogService) { }
             private _parameters: Parameter.IFactory[] = [];
+            get name(): string { return this.$scope.name; }
+            get alias(): string { return IfBlank(this.$scope.alias, this.name); }
+            get model(): angular.ICompiledExpression {
+                return (IsBlank(this.$scope.model)) ? undefined : this.$parse(this.$scope.model);
+            }
+            get type(): string {
+                if (IsBlank(this.$scope.model)) {
+                    return undefined;
+                } else if (IsBlank(this.$scope.type)) {
+                    return (IsBlank(this.$scope.root)) ? "object" : "array";
+                } else {
+                    var type: string = Option(this.$scope.type);
+                    return (["singleton", "object"].indexOf(type) >= 0) ? type : "array";
+                }
+            }
+            get root(): string {
+                return (this.type === "object") ? IfBlank(this.$scope.root, undefined) : undefined;
+            }
+            get run(): string {
+                var run: string = Option(this.$scope.run);
+                return (["auto", "once"].indexOf(run) >= 0) ? run : "manual";
+            }
+            emptyModel = () => {
+                this.model.assign(this.$scope.$parent, (this.type === "array") ? [] : {});
+            }
+            execute = () => {
+                var hasRequired: boolean = true;
+                var parameters: { name: string; value: any; xml: boolean; }[] = [];
+                angular.forEach(this._parameters, (parameterFactory: Parameter.IFactory) => {
+                    var parameter: Parameter.IParameter = parameterFactory();
+                    parameters.push({ name: parameter.name, value: parameter.value, xml: parameter.xml });
+                    if (parameter.required) { if (IsBlank(parameter.value)) { hasRequired = false; } }
+                });
+                var procedure: any = { name: this.name, parameters: parameters, type: this.type };
+                this.$log.debug(angular.toJson(procedure, false));
+            }
             addParameter = (parameterFactory: Parameter.IFactory) => {
                 this._parameters.push(parameterFactory);
             }
             removeParameter = (parameterFactory: Parameter.IFactory) => {
                 var i: number = this._parameters.indexOf(parameterFactory);
                 if (i >= 0) { this._parameters.splice(i, 1); }
-            }
-            factory = this.$scope.factory = () => {
-                var procedure: IProcedure = {
-                    name: this.$scope.name,
-                    parameters: [],
-                    type: Option(this.$scope.run, "manual")
-                };
-                if (["manual", "auto", "once"].indexOf(procedure.type) < 0) { procedure.type = "manual"; }
-                angular.forEach(this._parameters, (parameterFactory: Parameter.IFactory) => {
-                    procedure.parameters.push(parameterFactory());
-                });
-                return procedure;
-            }
-            execute = () => {
-                this.$log.debug(angular.toJson(this.$scope.factory()));
-            }
-            autoexec = () => {
             }
         }
     }
@@ -107,11 +123,12 @@ module SUI {
             required: string;
         }
         export class Controller {
-            static $inject: string[] = ["$scope", "$routeParams", "$parse"];
+            static $inject: string[] = ["$scope", "$routeParams", "$parse", "$log"];
             constructor(
                 public $scope: IScope,
                 public $routeParams: angular.route.IRouteParamsService,
-                public $parse: angular.IParseService) { }
+                public $parse: angular.IParseService,
+                public $log: angular.ILogService) { }
             factory = () => {
                 var type = Option(this.$scope.type, (IsBlank(this.$scope.value)) ? "route" : "value");
                 var format = Option(this.$scope.format, "");
@@ -160,20 +177,32 @@ module SUI {
 
 var sui = angular.module("SUI", ["ngRoute"]);
 
+sui.directive("sui", function () {
+    return {
+        restrict: "E",
+        template: "<ng-transclude></ng-transclude>",
+        transclude: true,
+        scope: <SUI.Main.IScope> {},
+        controller: SUI.Main.Controller
+    };
+});
+
 sui.directive("suiProc", function () {
     return {
         restrict: "E",
-        template: "{{factory()}}<ng-transclude></ng-transclude>",
+        template: "<ng-transclude></ng-transclude>",
         transclude: true,
-        scope: <SUI.Procedure.IScope> { name: "@", type: "@", run: "@" },
+        scope: <SUI.Procedure.IScope> { name: "@", alias: "@", model: "@", type: "@", root: "@", run: "@" },
         controller: SUI.Procedure.Controller,
-        require: ["suiProc"],
+        require: ["^^sui", "suiProc"],
         link: function (
             $scope: SUI.Parameter.IScope,
             iElement: angular.IAugmentedJQuery,
             iAttrs: angular.IAttributes,
-            controllers: [SUI.Procedure.Controller]) {
-            controllers[0].execute();
+            controllers: [SUI.Main.Controller, SUI.Procedure.Controller]) {
+            controllers[0].addProcedure(controllers[1].alias, controllers[1].execute);
+            $scope.$on("$destroy", () => { controllers[0].removeProcedure(controllers[1].alias); });
+            if (controllers[1].run !== "manual") { controllers[1].execute(); }
         }
     };
 });
@@ -192,6 +221,9 @@ sui.directive("suiProcParam", function () {
             controllers[1].addParameter(controllers[0].factory);
             $scope.$on("$destroy", (newValue: any, oldValue: any) => {
                 if (newValue !== oldValue) { controllers[1].removeParameter(controllers[0].factory); }
+            });
+            $scope.$watch(() => { return controllers[0].factory().value; }, () => {
+                if (controllers[1].run === "auto") { controllers[1].execute(); }
             });
         }
 

@@ -9,4 +9,4 @@ advent.config(["$routeProvider", function ($routeProvider: angular.route.IRouteP
     $routeProvider
         .when("/home", { caseInsensitiveMatch: true, templateUrl: "views/home.html" })
         .otherwise({ redirectTo: "/home" });
-}]); 
+}]);

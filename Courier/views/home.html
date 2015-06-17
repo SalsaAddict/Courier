@@ -1,5 +1,7 @@
 ﻿<input type="text" ng-model="IncidentId" />
 
-<sui-proc name="apiCountries">
-    <sui-proc-param name="IncidentId" type="scope" value="IncidentId" format="date"></sui-proc-param>
-</sui-proc>
+<sui>
+    <sui-proc name="apiCountries" run="auto">
+        <sui-proc-param name="IncidentId" type="scope" value="IncidentId" format="date"></sui-proc-param>
+    </sui-proc>
+</sui>

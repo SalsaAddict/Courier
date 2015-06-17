@@ -840,11 +840,13 @@
     <Content Include="scripts\i18n\angular-locale_zu-za.js" />
     <Content Include="scripts\i18n\angular-locale_zu.js" />
     <Content Include="packages.config" />
-    <Content Include="scripts\app\sui.min.js.map">
-      <DependentUpon>sui.min.js</DependentUpon>
-    </Content>
+    <Content Include="scripts\app\advent.js.map" />
+    <Content Include="scripts\app\sui.js.map" />
     <Content Include="scripts\app\advent.min.js.map">
       <DependentUpon>advent.min.js</DependentUpon>
+    </Content>
+    <Content Include="scripts\app\sui.min.js.map">
+      <DependentUpon>sui.min.js</DependentUpon>
     </Content>
     <None Include="scripts\jquery-2.1.4.intellisense.js" />
     <Content Include="scripts\jquery-2.1.4.js" />
