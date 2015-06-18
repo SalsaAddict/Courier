@@ -86,6 +86,14 @@
     <Content Include="fonts\FontAwesome.otf" />
     <Content Include="Icon.png" />
     <Content Include="scripts\angular-mocks.js" />
+    <Content Include="scripts\app\advent.js" />
+    <Content Include="scripts\app\advent.min.js">
+      <DependentUpon>advent.js</DependentUpon>
+    </Content>
+    <Content Include="scripts\app\sui.js" />
+    <Content Include="scripts\app\sui.min.js">
+      <DependentUpon>sui.js</DependentUpon>
+    </Content>
     <Content Include="scripts\bootstrap.js" />
     <Content Include="scripts\bootstrap.min.js" />
     <Content Include="scripts\i18n\angular-locale_aa-dj.js" />
@@ -832,6 +840,14 @@
     <Content Include="scripts\i18n\angular-locale_zu-za.js" />
     <Content Include="scripts\i18n\angular-locale_zu.js" />
     <Content Include="packages.config" />
+    <Content Include="scripts\app\advent.js.map" />
+    <Content Include="scripts\app\sui.js.map" />
+    <Content Include="scripts\app\advent.min.js.map">
+      <DependentUpon>advent.min.js</DependentUpon>
+    </Content>
+    <Content Include="scripts\app\sui.min.js.map">
+      <DependentUpon>sui.min.js</DependentUpon>
+    </Content>
     <None Include="scripts\jquery-2.1.4.intellisense.js" />
     <Content Include="scripts\jquery-2.1.4.js" />
     <Content Include="scripts\jquery-2.1.4.min.js" />

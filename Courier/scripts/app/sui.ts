@@ -1,7 +1,6 @@
 ﻿/// <reference path="../typings/angularjs/angular.d.ts" />
 /// <reference path="../typings/angularjs/angular-route.d.ts" />
 /// <reference path="../typings/moment/moment.d.ts" />
-"use strict";
 module SUI {
     "use strict";
     export function IsBlank(expression: any): boolean {
@@ -155,13 +154,18 @@ module SUI {
                                 case "yesterday": value = moment().subtract(1, "days").format("YYYY-MM-DD"); break;
                                 default:
                                     value = moment(value).format("YYYY-MM-DD");
-                                    if (angular.lowercase(value).indexOf("invalid") >= 0) { value = null; };
+                                    if (angular.lowercase(value).indexOf("invalid") >= 0) { value = null; }
                                     break;
                             }
                             break;
                         case "number": value = Number(value); break;
                         case "xml": value = angular.toJson(value, false); xml = true; break;
-                        default: if (angular.isObject(value)) { value = angular.toJson(value, false); xml = true; }
+                        default:
+                            if (angular.isObject(value)) {
+                                value = angular.toJson(value, false);
+                                xml = true;
+                            }
+                            break;
                     }
                 }
                 return {
@@ -222,11 +226,12 @@ sui.directive("suiProcParam", function () {
             $scope.$on("$destroy", (newValue: any, oldValue: any) => {
                 if (newValue !== oldValue) { controllers[1].removeParameter(controllers[0].factory); }
             });
-            $scope.$watch(() => { return controllers[0].factory().value; }, () => {
-                if (controllers[1].run === "auto") { controllers[1].execute(); }
+            $scope.$watch(() => { return controllers[0].factory().value; }, (newValue: any, oldValue: any) => {
+                if (newValue !== oldValue) {
+                    if (controllers[1].run === "auto") { controllers[1].execute(); }
+                }
             });
         }
-
     };
 });
 
