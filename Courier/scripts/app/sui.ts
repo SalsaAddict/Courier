@@ -179,13 +179,16 @@ module SUI {
     }
 }
 
-var sui = angular.module("SUI", ["ngRoute"]);
+var sui = angular.module("SUI", ["ngRoute",
+    "templates/transclude.html"
+]);
 
 sui.directive("sui", function () {
     return {
         restrict: "E",
-        template: "<ng-transclude></ng-transclude>",
+        templateUrl: "templates/transclude.html",
         transclude: true,
+        replace: true,
         scope: <SUI.Main.IScope> {},
         controller: SUI.Main.Controller
     };
@@ -194,8 +197,9 @@ sui.directive("sui", function () {
 sui.directive("suiProc", function () {
     return {
         restrict: "E",
-        template: "<ng-transclude></ng-transclude>",
+        templateUrl: "templates/transclude.html",
         transclude: true,
+        replace: true,
         scope: <SUI.Procedure.IScope> { name: "@", alias: "@", model: "@", type: "@", root: "@", run: "@" },
         controller: SUI.Procedure.Controller,
         require: ["^^sui", "suiProc"],
@@ -214,6 +218,9 @@ sui.directive("suiProc", function () {
 sui.directive("suiProcParam", function () {
     return {
         restrict: "E",
+        templateUrl: "templates/transclude.html",
+        transclude: true,
+        replace: true,
         scope: <SUI.Parameter.IScope> { name: "@", type: "@", value: "@", format: "@", required: "@" },
         controller: SUI.Parameter.Controller,
         require: ["suiProcParam", "^^suiProc"],
@@ -235,3 +242,7 @@ sui.directive("suiProcParam", function () {
     };
 });
 
+angular.module("templates/transclude.html", [])
+    .run(["$templateCache", function ($templateCache: angular.ITemplateCacheService) {
+    $templateCache.put("templates/transclude.html", "<ng-transclude></ng-transclude>");
+}]);

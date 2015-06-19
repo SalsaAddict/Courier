@@ -227,12 +227,15 @@ var SUI;
         Parameter.Controller = Controller;
     })(Parameter = SUI.Parameter || (SUI.Parameter = {}));
 })(SUI || (SUI = {}));
-var sui = angular.module("SUI", ["ngRoute"]);
+var sui = angular.module("SUI", ["ngRoute",
+    "templates/transclude.html"
+]);
 sui.directive("sui", function () {
     return {
         restrict: "E",
-        template: "<ng-transclude></ng-transclude>",
+        templateUrl: "templates/transclude.html",
         transclude: true,
+        replace: true,
         scope: {},
         controller: SUI.Main.Controller
     };
@@ -240,8 +243,9 @@ sui.directive("sui", function () {
 sui.directive("suiProc", function () {
     return {
         restrict: "E",
-        template: "<ng-transclude></ng-transclude>",
+        templateUrl: "templates/transclude.html",
         transclude: true,
+        replace: true,
         scope: { name: "@", alias: "@", model: "@", type: "@", root: "@", run: "@" },
         controller: SUI.Procedure.Controller,
         require: ["^^sui", "suiProc"],
@@ -257,6 +261,9 @@ sui.directive("suiProc", function () {
 sui.directive("suiProcParam", function () {
     return {
         restrict: "E",
+        templateUrl: "templates/transclude.html",
+        transclude: true,
+        replace: true,
         scope: { name: "@", type: "@", value: "@", format: "@", required: "@" },
         controller: SUI.Parameter.Controller,
         require: ["suiProcParam", "^^suiProc"],
@@ -277,4 +284,8 @@ sui.directive("suiProcParam", function () {
         }
     };
 });
+angular.module("templates/transclude.html", [])
+    .run(["$templateCache", function ($templateCache) {
+        $templateCache.put("templates/transclude.html", "<ng-transclude></ng-transclude>");
+    }]);
 //# sourceMappingURL=sui.js.map

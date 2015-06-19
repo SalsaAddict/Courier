@@ -74,6 +74,7 @@
     <Content Include="content\bootstrap-theme.css.map" />
     <Content Include="content\bootstrap.css.map" />
     <Content Include="main.html" />
+    <Content Include="pah.png" />
     <Content Include="scripts\angular-route.js" />
     <Content Include="scripts\angular-route.min.js" />
     <Content Include="scripts\angular.js" />
@@ -84,7 +85,6 @@
     <Content Include="fonts\fontawesome-webfont.ttf" />
     <Content Include="fonts\fontawesome-webfont.eot" />
     <Content Include="fonts\FontAwesome.otf" />
-    <Content Include="Icon.png" />
     <Content Include="scripts\angular-mocks.js" />
     <Content Include="scripts\app\advent.js" />
     <Content Include="scripts\app\advent.min.js">
