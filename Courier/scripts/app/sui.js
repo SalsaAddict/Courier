@@ -1,11 +1,12 @@
 /// <reference path="../typings/angularjs/angular.d.ts" />
 /// <reference path="../typings/angularjs/angular-route.d.ts" />
 /// <reference path="../typings/moment/moment.d.ts" />
+"use strict";
 var SUI;
 (function (SUI) {
     "use strict";
     function IsBlank(expression) {
-        if (angular.isUndefined(expression)) {
+        if (expression === undefined) {
             return true;
         }
         else if (expression === null) {
@@ -26,75 +27,118 @@ var SUI;
     }
     SUI.IsBlank = IsBlank;
     function IfBlank(expression, defaultValue) {
-        if (defaultValue === void 0) { defaultValue = null; }
         return (IsBlank(expression)) ? defaultValue : expression;
     }
     SUI.IfBlank = IfBlank;
-    function Option(expression, defaultValue) {
+    function Option(value, defaultValue) {
         if (defaultValue === void 0) { defaultValue = ""; }
-        return angular.lowercase(IfBlank(expression, defaultValue)).trim();
+        return String(IfBlank(value, IfBlank(defaultValue, ""))).trim().toLowerCase();
     }
     SUI.Option = Option;
+    function Format(value, format) {
+        var dateFormat = "YYYY-MM-DD";
+        var formatted;
+        switch (Option(format)) {
+            case "date":
+                switch (Option(value)) {
+                    case "today":
+                        formatted = moment().format(dateFormat);
+                        break;
+                    case "tomorrow":
+                        formatted = moment().add(1, "day").format(dateFormat);
+                        break;
+                    case "yesterday":
+                        formatted = moment().subtract(1, "day").format(dateFormat);
+                        break;
+                    default:
+                        formatted = moment(value).format(dateFormat);
+                        if (String(formatted).toLowerCase().indexOf("invalid") >= 0) {
+                            formatted = null;
+                        }
+                        break;
+                }
+                break;
+            case "number":
+                formatted = (angular.isNumber(value)) ? Number(value) : null;
+                break;
+            case "boolean":
+                formatted = Boolean(value);
+                break;
+            case "xml":
+                formatted = angular.toJson(value);
+                break;
+            default:
+                formatted = String(value).trim();
+                break;
+        }
+        return formatted;
+    }
+    SUI.Format = Format;
     var Main;
     (function (Main) {
+        "use strict";
         var Controller = (function () {
-            function Controller($scope, $log) {
+            function Controller($scope) {
                 var _this = this;
                 this.$scope = $scope;
-                this.$log = $log;
-                this._procedures = {};
-                this.addProcedure = function (alias, execute) {
-                    _this._procedures[alias] = execute;
-                };
-                this.removeProcedure = function (alias) {
-                    if (angular.isDefined(_this._procedures[alias])) {
-                        delete _this._procedures[alias];
-                    }
-                };
-                this.execute = function (alias) {
-                    _this._procedures[alias]();
+                this.addProcedure = function (name, execute) {
+                    _this.procedures[name] = execute;
                 };
             }
-            Controller.$inject = ["$scope", "$log"];
+            Controller.$inject = ["$scope"];
             return Controller;
         })();
         Main.Controller = Controller;
     })(Main = SUI.Main || (SUI.Main = {}));
     var Procedure;
     (function (Procedure) {
+        "use strict";
         var Controller = (function () {
             function Controller($scope, $parse, $log) {
                 var _this = this;
                 this.$scope = $scope;
                 this.$parse = $parse;
                 this.$log = $log;
-                this._parameters = [];
-                this.emptyModel = function () {
-                    _this.model.assign(_this.$scope.$parent, (_this.type === "array") ? [] : {});
+                this.parameters = [];
+                this.addParameter = function (parameterFactory) {
+                    _this.parameters.push(parameterFactory);
+                };
+                this.removeParameter = function (parameterFactory) {
+                    var i = _this.parameters.indexOf(parameterFactory);
+                    if (i >= 0) {
+                        _this.parameters.splice(i, 1);
+                    }
                 };
                 this.execute = function () {
-                    var hasRequired = true;
-                    var parameters = [];
-                    angular.forEach(_this._parameters, function (parameterFactory) {
-                        var parameter = parameterFactory();
-                        parameters.push({ name: parameter.name, value: parameter.value, xml: parameter.xml });
-                        if (parameter.required) {
-                            if (IsBlank(parameter.value)) {
-                                hasRequired = false;
+                    var procedure = {
+                        name: _this.name,
+                        parameters: [],
+                        type: _this.type
+                    };
+                    angular.forEach(_this.parameters, function (parameterFactory) {
+                        procedure.parameters.push(parameterFactory());
+                    });
+                    _this.$log.debug(angular.toJson(procedure));
+                };
+                this.initialize = function () {
+                    var run = function () { if (_this.run !== "manual") {
+                        _this.execute();
+                    } };
+                    _this.$scope.$watch(function () { return _this.parameters.length; }, function (newValue, oldValue) {
+                        if (newValue !== oldValue) {
+                            if (_this.run !== "manual") {
+                                run();
                             }
                         }
                     });
-                    var procedure = { name: _this.name, parameters: parameters, type: _this.type };
-                    _this.$log.debug(angular.toJson(procedure, false));
-                };
-                this.addParameter = function (parameterFactory) {
-                    _this._parameters.push(parameterFactory);
-                };
-                this.removeParameter = function (parameterFactory) {
-                    var i = _this._parameters.indexOf(parameterFactory);
-                    if (i >= 0) {
-                        _this._parameters.splice(i, 1);
-                    }
+                    _this.$scope.$watch(function () { return _this.run; }, function (newValue, oldValue) {
+                        if (newValue !== oldValue) {
+                            if (_this.run !== "manual") {
+                                run();
+                            }
+                        }
+                    });
+                    run();
                 };
             }
             Object.defineProperty(Controller.prototype, "name", {
@@ -102,45 +146,39 @@ var SUI;
                 enumerable: true,
                 configurable: true
             });
-            Object.defineProperty(Controller.prototype, "alias", {
-                get: function () { return IfBlank(this.$scope.alias, this.name); },
-                enumerable: true,
-                configurable: true
-            });
             Object.defineProperty(Controller.prototype, "model", {
-                get: function () {
-                    return (IsBlank(this.$scope.model)) ? undefined : this.$parse(this.$scope.model);
-                },
+                get: function () { return (IsBlank(this.$scope.model)) ? undefined : this.$parse(this.$scope.model)(this.$scope.$parent); },
+                set: function (value) { this.$parse(this.$scope.model).assign(this.$scope.$parent, value); },
                 enumerable: true,
                 configurable: true
             });
             Object.defineProperty(Controller.prototype, "type", {
                 get: function () {
-                    if (IsBlank(this.$scope.model)) {
-                        return undefined;
-                    }
-                    else if (IsBlank(this.$scope.type)) {
-                        return (IsBlank(this.$scope.root)) ? "object" : "array";
+                    if (angular.isDefined(this.model)) {
+                        if (IsBlank(this.$scope.type)) {
+                            return (IsBlank(this.$scope.root)) ? "array" : "object";
+                        }
+                        else {
+                            var option = Option(this.$scope.type);
+                            return (["singleton", "object"].indexOf(option) >= 0) ? option : "array";
+                        }
                     }
                     else {
-                        var type = Option(this.$scope.type);
-                        return (["singleton", "object"].indexOf(type) >= 0) ? type : "array";
+                        return "execute";
                     }
                 },
                 enumerable: true,
                 configurable: true
             });
             Object.defineProperty(Controller.prototype, "root", {
-                get: function () {
-                    return (this.type === "object") ? IfBlank(this.$scope.root, undefined) : undefined;
-                },
+                get: function () { return (this.type === "object") ? IfBlank(this.$scope.root, undefined) : undefined; },
                 enumerable: true,
                 configurable: true
             });
             Object.defineProperty(Controller.prototype, "run", {
                 get: function () {
-                    var run = Option(this.$scope.run);
-                    return (["auto", "once"].indexOf(run) >= 0) ? run : "manual";
+                    var option = Option(this.$scope.run);
+                    return (["auto", "once"].indexOf(option) >= 0) ? option : "manual";
                 },
                 enumerable: true,
                 configurable: true
@@ -152,129 +190,92 @@ var SUI;
     })(Procedure = SUI.Procedure || (SUI.Procedure = {}));
     var Parameter;
     (function (Parameter) {
+        "use strict";
         var Controller = (function () {
-            function Controller($scope, $routeParams, $parse, $log) {
+            function Controller($scope, $routeParams, $parse) {
                 var _this = this;
                 this.$scope = $scope;
                 this.$routeParams = $routeParams;
                 this.$parse = $parse;
-                this.$log = $log;
                 this.factory = function () {
-                    var type = Option(_this.$scope.type, (IsBlank(_this.$scope.value)) ? "route" : "value");
-                    var format = Option(_this.$scope.format, "");
-                    var value, xml = false;
-                    switch (type) {
-                        case "route":
-                            value = _this.$routeParams[_this.$scope.value || _this.$scope.name];
-                            break;
-                        case "scope":
-                            value = _this.$parse(_this.$scope.value)(_this.$scope.$parent);
-                            break;
-                        default:
-                            value = _this.$scope.value;
-                            break;
-                    }
-                    if (IsBlank(value)) {
-                        value = null;
-                    }
-                    else {
-                        switch (format) {
-                            case "date":
-                                switch (Option(value, "")) {
-                                    case "today":
-                                        value = moment().format("YYYY-MM-DD");
-                                        break;
-                                    case "tomorrow":
-                                        value = moment().add(1, "days").format("YYYY-MM-DD");
-                                        break;
-                                    case "yesterday":
-                                        value = moment().subtract(1, "days").format("YYYY-MM-DD");
-                                        break;
-                                    default:
-                                        value = moment(value).format("YYYY-MM-DD");
-                                        if (angular.lowercase(value).indexOf("invalid") >= 0) {
-                                            value = null;
-                                        }
-                                        break;
-                                }
-                                break;
-                            case "number":
-                                value = Number(value);
-                                break;
-                            case "xml":
-                                value = angular.toJson(value, false);
-                                xml = true;
-                                break;
-                            default:
-                                if (angular.isObject(value)) {
-                                    value = angular.toJson(value, false);
-                                    xml = true;
-                                }
-                                break;
-                        }
-                    }
-                    return {
-                        name: _this.$scope.name,
-                        value: value,
-                        xml: xml,
-                        required: Option(_this.$scope.required, "false") === "true"
-                    };
+                    return { name: _this.name, value: _this.value, xml: _this.xml, required: _this.required };
                 };
             }
-            Controller.$inject = ["$scope", "$routeParams", "$parse", "$log"];
+            Object.defineProperty(Controller.prototype, "name", {
+                get: function () { return this.$scope.name; },
+                enumerable: true,
+                configurable: true
+            });
+            Object.defineProperty(Controller.prototype, "type", {
+                get: function () {
+                    if (IsBlank(this.$scope.type)) {
+                        return (IsBlank(this.$scope.value)) ? "route" : "value";
+                    }
+                    else {
+                        var option = Option(this.$scope.type);
+                        return (["route", "scope"].indexOf(option) >= 0) ? option : "value";
+                    }
+                },
+                enumerable: true,
+                configurable: true
+            });
+            Object.defineProperty(Controller.prototype, "value", {
+                get: function () {
+                    var value = undefined;
+                    switch (this.type) {
+                        case "route":
+                            value = this.$routeParams[this.$scope.value || this.$scope.name];
+                            break;
+                        case "scope":
+                            value = this.$parse(this.$scope.value)(this.$scope.$parent);
+                            break;
+                        default:
+                            value = this.$scope.value;
+                            break;
+                    }
+                    return IfBlank(Format(value, this.$scope.format), null);
+                },
+                enumerable: true,
+                configurable: true
+            });
+            Object.defineProperty(Controller.prototype, "xml", {
+                get: function () { return (Option(this.$scope.format) === "xml"); },
+                enumerable: true,
+                configurable: true
+            });
+            Object.defineProperty(Controller.prototype, "required", {
+                get: function () { return (Option(this.$scope.required) === "true"); },
+                enumerable: true,
+                configurable: true
+            });
+            Controller.$inject = ["$scope", "$routeParams", "$parse"];
             return Controller;
         })();
         Parameter.Controller = Controller;
     })(Parameter = SUI.Parameter || (SUI.Parameter = {}));
 })(SUI || (SUI = {}));
-var sui = angular.module("SUI", ["ngRoute",
-    "templates/transclude.html"
-]);
-sui.directive("sui", function () {
-    return {
-        restrict: "E",
-        templateUrl: "templates/transclude.html",
-        transclude: true,
-        replace: true,
-        scope: {},
-        controller: SUI.Main.Controller
-    };
-});
+var sui = angular.module("SUI", []);
 sui.directive("suiProc", function () {
     return {
         restrict: "E",
-        templateUrl: "templates/transclude.html",
-        transclude: true,
-        replace: true,
-        scope: { name: "@", alias: "@", model: "@", type: "@", root: "@", run: "@" },
+        scope: { name: "@", model: "@", type: "@", root: "@", run: "@" },
         controller: SUI.Procedure.Controller,
-        require: ["^^sui", "suiProc"],
+        require: ["suiProc", "^sui"],
         link: function ($scope, iElement, iAttrs, controllers) {
-            controllers[0].addProcedure(controllers[1].alias, controllers[1].execute);
-            $scope.$on("$destroy", function () { controllers[0].removeProcedure(controllers[1].alias); });
-            if (controllers[1].run !== "manual") {
-                controllers[1].execute();
-            }
+            controllers[0].initialize();
         }
     };
 });
 sui.directive("suiProcParam", function () {
     return {
         restrict: "E",
-        templateUrl: "templates/transclude.html",
-        transclude: true,
-        replace: true,
         scope: { name: "@", type: "@", value: "@", format: "@", required: "@" },
         controller: SUI.Parameter.Controller,
-        require: ["suiProcParam", "^^suiProc"],
+        require: ["suiProcParam", "^suiProc"],
         link: function ($scope, iElement, iAttrs, controllers) {
             controllers[1].addParameter(controllers[0].factory);
-            $scope.$on("$destroy", function (newValue, oldValue) {
-                if (newValue !== oldValue) {
-                    controllers[1].removeParameter(controllers[0].factory);
-                }
-            });
-            $scope.$watch(function () { return controllers[0].factory().value; }, function (newValue, oldValue) {
+            $scope.$on("$destroy", function () { controllers[1].removeParameter(controllers[0].factory); });
+            $scope.$watch(function () { return controllers[0].value; }, function (newValue, oldValue) {
                 if (newValue !== oldValue) {
                     if (controllers[1].run === "auto") {
                         controllers[1].execute();
@@ -284,8 +285,4 @@ sui.directive("suiProcParam", function () {
         }
     };
 });
-angular.module("templates/transclude.html", [])
-    .run(["$templateCache", function ($templateCache) {
-        $templateCache.put("templates/transclude.html", "<ng-transclude></ng-transclude>");
-    }]);
 //# sourceMappingURL=sui.js.map

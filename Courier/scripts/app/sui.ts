@@ -1,10 +1,12 @@
 ﻿/// <reference path="../typings/angularjs/angular.d.ts" />
 /// <reference path="../typings/angularjs/angular-route.d.ts" />
 /// <reference path="../typings/moment/moment.d.ts" />
+"use strict";
+
 module SUI {
     "use strict";
     export function IsBlank(expression: any): boolean {
-        if (angular.isUndefined(expression)) {
+        if (expression === undefined) {
             return true;
         } else if (expression === null) {
             return true;
@@ -18,39 +20,50 @@ module SUI {
             return false;
         }
     }
-    export function IfBlank(expression: any, defaultValue: any = null) {
+    export function IfBlank(expression: any, defaultValue: any): any {
         return (IsBlank(expression)) ? defaultValue : expression;
     }
-    export function Option(expression: string, defaultValue: string = ""): string {
-        return angular.lowercase(IfBlank(expression, defaultValue)).trim();
+    export function Option(value: any, defaultValue: string = ""): string {
+        return String(IfBlank(value, IfBlank(defaultValue, ""))).trim().toLowerCase();
+    }
+    export function Format(value: any, format: string): any {
+        var dateFormat: string = "YYYY-MM-DD";
+        var formatted: any;
+        switch (Option(format)) {
+            case "date":
+                switch (Option(value)) {
+                    case "today": formatted = moment().format(dateFormat); break;
+                    case "tomorrow": formatted = moment().add(1, "day").format(dateFormat); break;
+                    case "yesterday": formatted = moment().subtract(1, "day").format(dateFormat); break;
+                    default:
+                        formatted = moment(value).format(dateFormat);
+                        if (String(formatted).toLowerCase().indexOf("invalid") >= 0) { formatted = null; }
+                        break;
+                }
+                break;
+            case "number": formatted = (angular.isNumber(value)) ? Number(value) : null; break;
+            case "boolean": formatted = Boolean(value); break;
+            case "xml": formatted = angular.toJson(value); break;
+            default: formatted = String(value).trim(); break;
+        }
+        return formatted;
     }
     export module Main {
+        "use strict";
         export interface IScope extends angular.IScope { }
         export class Controller {
-            static $inject: string[] = ["$scope", "$log"];
-            constructor(public $scope: IScope, public $log: angular.ILogService) { }
-            private _procedures: { [alias: string]: Function; } = {};
-            addProcedure = (alias: string, execute: Function) => {
-                this._procedures[alias] = execute;
-            }
-            removeProcedure = (alias: string) => {
-                if (angular.isDefined(this._procedures[alias])) {
-                    delete this._procedures[alias];
-                }
-            }
-            execute = (alias: string) => {
-                this._procedures[alias]();
-            }
+            static $inject: string[] = ["$scope"];
+            constructor(public $scope: IScope) { }
+            private procedures: { [alias: string]: (void); }
+            addProcedure = (name: string, execute: (void)) => {
+                this.procedures[name] = execute;
+            };
         }
     }
     export module Procedure {
+        "use strict";
         export interface IScope extends angular.IScope {
-            name: string;
-            alias: string;
-            model: string;
-            type: string;
-            root: string;
-            run: string;
+            name: string; model: string; type: string; root: string; run: string;
         }
         export class Controller {
             static $inject: string[] = ["$scope", "$parse", "$log"];
@@ -58,159 +71,113 @@ module SUI {
                 public $scope: IScope,
                 public $parse: angular.IParseService,
                 public $log: angular.ILogService) { }
-            private _parameters: Parameter.IFactory[] = [];
             get name(): string { return this.$scope.name; }
-            get alias(): string { return IfBlank(this.$scope.alias, this.name); }
-            get model(): angular.ICompiledExpression {
-                return (IsBlank(this.$scope.model)) ? undefined : this.$parse(this.$scope.model);
-            }
+            get model(): any { return (IsBlank(this.$scope.model)) ? undefined : this.$parse(this.$scope.model)(this.$scope.$parent); }
+            set model(value: any) { this.$parse(this.$scope.model).assign(this.$scope.$parent, value); }
             get type(): string {
-                if (IsBlank(this.$scope.model)) {
-                    return undefined;
-                } else if (IsBlank(this.$scope.type)) {
-                    return (IsBlank(this.$scope.root)) ? "object" : "array";
-                } else {
-                    var type: string = Option(this.$scope.type);
-                    return (["singleton", "object"].indexOf(type) >= 0) ? type : "array";
-                }
+                if (angular.isDefined(this.model)) {
+                    if (IsBlank(this.$scope.type)) {
+                        return (IsBlank(this.$scope.root)) ? "array" : "object";
+                    } else {
+                        var option = Option(this.$scope.type);
+                        return (["singleton", "object"].indexOf(option) >= 0) ? option : "array";
+                    }
+                } else { return "execute"; }
             }
-            get root(): string {
-                return (this.type === "object") ? IfBlank(this.$scope.root, undefined) : undefined;
-            }
+            get root(): string { return (this.type === "object") ? IfBlank(this.$scope.root, undefined) : undefined; }
             get run(): string {
-                var run: string = Option(this.$scope.run);
-                return (["auto", "once"].indexOf(run) >= 0) ? run : "manual";
+                var option = Option(this.$scope.run);
+                return (["auto", "once"].indexOf(option) >= 0) ? option : "manual";
             }
-            emptyModel = () => {
-                this.model.assign(this.$scope.$parent, (this.type === "array") ? [] : {});
-            }
-            execute = () => {
-                var hasRequired: boolean = true;
-                var parameters: { name: string; value: any; xml: boolean; }[] = [];
-                angular.forEach(this._parameters, (parameterFactory: Parameter.IFactory) => {
-                    var parameter: Parameter.IParameter = parameterFactory();
-                    parameters.push({ name: parameter.name, value: parameter.value, xml: parameter.xml });
-                    if (parameter.required) { if (IsBlank(parameter.value)) { hasRequired = false; } }
-                });
-                var procedure: any = { name: this.name, parameters: parameters, type: this.type };
-                this.$log.debug(angular.toJson(procedure, false));
-            }
+            private parameters: Parameter.IFactory[] = [];
             addParameter = (parameterFactory: Parameter.IFactory) => {
-                this._parameters.push(parameterFactory);
+                this.parameters.push(parameterFactory);
             }
             removeParameter = (parameterFactory: Parameter.IFactory) => {
-                var i: number = this._parameters.indexOf(parameterFactory);
-                if (i >= 0) { this._parameters.splice(i, 1); }
+                var i = this.parameters.indexOf(parameterFactory);
+                if (i >= 0) { this.parameters.splice(i, 1); }
+            }
+            execute = () => {
+                var procedure: { name: string; parameters: any[], type: string; } = {
+                    name: this.name,
+                    parameters: [],
+                    type: this.type
+                };
+                angular.forEach(this.parameters, (parameterFactory: Parameter.IFactory) => {
+                    procedure.parameters.push(parameterFactory());
+                });
+                this.$log.debug(angular.toJson(procedure));
+            }
+            initialize = () => {
+                var run = (): void => { if (this.run !== "manual") { this.execute(); } };
+                this.$scope.$watch(() => { return this.parameters.length; }, (newValue: any, oldValue: any) => {
+                    if (newValue !== oldValue) { if (this.run !== "manual") { run(); } }
+                });
+                this.$scope.$watch(() => { return this.run; }, (newValue: any, oldValue: any) => {
+                    if (newValue !== oldValue) { if (this.run !== "manual") { run(); } }
+                });
+                run();
             }
         }
     }
     export module Parameter {
+        "use strict";
+        export interface IScope extends angular.IScope {
+            name: string; type: string; value: string; format: string; required: string;
+        }
         export interface IParameter {
-            name: string;
-            value: any;
-            xml: boolean;
-            required: boolean;
+            name: string; value: any; xml: boolean; required: boolean;
         }
         export interface IFactory {
             (): IParameter;
         }
-        export interface IScope extends angular.IScope {
-            name: string;
-            type: string;
-            value: string;
-            format: string;
-            required: string;
-        }
         export class Controller {
-            static $inject: string[] = ["$scope", "$routeParams", "$parse", "$log"];
+            static $inject: string[] = ["$scope", "$routeParams", "$parse"];
             constructor(
                 public $scope: IScope,
                 public $routeParams: angular.route.IRouteParamsService,
-                public $parse: angular.IParseService,
-                public $log: angular.ILogService) { }
-            factory = () => {
-                var type = Option(this.$scope.type, (IsBlank(this.$scope.value)) ? "route" : "value");
-                var format = Option(this.$scope.format, "");
-                var value: any, xml: boolean = false;
-                switch (type) {
-                    case "route":
-                        value = this.$routeParams[this.$scope.value || this.$scope.name];
-                        break;
-                    case "scope":
-                        value = this.$parse(this.$scope.value)(this.$scope.$parent);
-                        break;
-                    default:
-                        value = this.$scope.value;
-                        break;
-                }
-                if (IsBlank(value)) {
-                    value = null;
+                public $parse: angular.IParseService) { }
+            get name(): string { return this.$scope.name; }
+            get type(): string {
+                if (IsBlank(this.$scope.type)) {
+                    return (IsBlank(this.$scope.value)) ? "route" : "value";
                 } else {
-                    switch (format) {
-                        case "date":
-                            switch (Option(value, "")) {
-                                case "today": value = moment().format("YYYY-MM-DD"); break;
-                                case "tomorrow": value = moment().add(1, "days").format("YYYY-MM-DD"); break;
-                                case "yesterday": value = moment().subtract(1, "days").format("YYYY-MM-DD"); break;
-                                default:
-                                    value = moment(value).format("YYYY-MM-DD");
-                                    if (angular.lowercase(value).indexOf("invalid") >= 0) { value = null; }
-                                    break;
-                            }
-                            break;
-                        case "number": value = Number(value); break;
-                        case "xml": value = angular.toJson(value, false); xml = true; break;
-                        default:
-                            if (angular.isObject(value)) {
-                                value = angular.toJson(value, false);
-                                xml = true;
-                            }
-                            break;
-                    }
+                    var option = Option(this.$scope.type);
+                    return (["route", "scope"].indexOf(option) >= 0) ? option : "value";
                 }
-                return {
-                    name: this.$scope.name,
-                    value: value,
-                    xml: xml,
-                    required: Option(this.$scope.required, "false") === "true"
-                };
+            }
+            get value(): any {
+                var value: any = undefined;
+                switch (this.type) {
+                    case "route": value = this.$routeParams[this.$scope.value || this.$scope.name]; break;
+                    case "scope": value = this.$parse(this.$scope.value)(this.$scope.$parent); break;
+                    default: value = this.$scope.value; break;
+                }
+                return IfBlank(Format(value, this.$scope.format), null);
+            }
+            get xml(): boolean { return (Option(this.$scope.format) === "xml"); }
+            get required(): boolean { return (Option(this.$scope.required) === "true"); }
+            factory = (): IParameter => {
+                return { name: this.name, value: this.value, xml: this.xml, required: this.required };
             }
         }
     }
 }
 
-var sui = angular.module("SUI", ["ngRoute",
-    "templates/transclude.html"
-]);
-
-sui.directive("sui", function () {
-    return {
-        restrict: "E",
-        templateUrl: "templates/transclude.html",
-        transclude: true,
-        replace: true,
-        scope: <SUI.Main.IScope> {},
-        controller: SUI.Main.Controller
-    };
-});
+var sui = angular.module("SUI", []);
 
 sui.directive("suiProc", function () {
     return {
         restrict: "E",
-        templateUrl: "templates/transclude.html",
-        transclude: true,
-        replace: true,
-        scope: <SUI.Procedure.IScope> { name: "@", alias: "@", model: "@", type: "@", root: "@", run: "@" },
+        scope: <SUI.Procedure.IScope> { name: "@", model: "@", type: "@", root: "@", run: "@" },
         controller: SUI.Procedure.Controller,
-        require: ["^^sui", "suiProc"],
+        require: ["suiProc", "^sui"],
         link: function (
-            $scope: SUI.Parameter.IScope,
+            $scope: SUI.Procedure.IScope,
             iElement: angular.IAugmentedJQuery,
             iAttrs: angular.IAttributes,
-            controllers: [SUI.Main.Controller, SUI.Procedure.Controller]) {
-            controllers[0].addProcedure(controllers[1].alias, controllers[1].execute);
-            $scope.$on("$destroy", () => { controllers[0].removeProcedure(controllers[1].alias); });
-            if (controllers[1].run !== "manual") { controllers[1].execute(); }
+            controllers: [SUI.Procedure.Controller]) {
+            controllers[0].initialize();
         }
     };
 });
@@ -218,31 +185,19 @@ sui.directive("suiProc", function () {
 sui.directive("suiProcParam", function () {
     return {
         restrict: "E",
-        templateUrl: "templates/transclude.html",
-        transclude: true,
-        replace: true,
         scope: <SUI.Parameter.IScope> { name: "@", type: "@", value: "@", format: "@", required: "@" },
         controller: SUI.Parameter.Controller,
-        require: ["suiProcParam", "^^suiProc"],
+        require: ["suiProcParam", "^suiProc"],
         link: function (
-            $scope: SUI.Parameter.IScope,
+            $scope: SUI.Procedure.IScope,
             iElement: angular.IAugmentedJQuery,
             iAttrs: angular.IAttributes,
             controllers: [SUI.Parameter.Controller, SUI.Procedure.Controller]) {
             controllers[1].addParameter(controllers[0].factory);
-            $scope.$on("$destroy", (newValue: any, oldValue: any) => {
-                if (newValue !== oldValue) { controllers[1].removeParameter(controllers[0].factory); }
-            });
-            $scope.$watch(() => { return controllers[0].factory().value; }, (newValue: any, oldValue: any) => {
-                if (newValue !== oldValue) {
-                    if (controllers[1].run === "auto") { controllers[1].execute(); }
-                }
+            $scope.$on("$destroy", () => { controllers[1].removeParameter(controllers[0].factory); });
+            $scope.$watch(function () { return controllers[0].value; }, function (newValue: any, oldValue: any) {
+                if (newValue !== oldValue) { if (controllers[1].run === "auto") { controllers[1].execute(); } }
             });
         }
     };
 });
-
-angular.module("templates/transclude.html", [])
-    .run(["$templateCache", function ($templateCache: angular.ITemplateCacheService) {
-    $templateCache.put("templates/transclude.html", "<ng-transclude></ng-transclude>");
-}]);
