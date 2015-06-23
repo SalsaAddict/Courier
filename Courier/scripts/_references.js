@@ -7,5 +7,5 @@
 /// <reference path="moment-with-locales.min.js" />
 /// <reference path="moment.min.js" />
 /// <reference path="jquery-2.1.4.js" />
+/// <reference path="app/sui.min.js" />
 /// <reference path="app/advent.js" />
-/// <reference path="app/sui.js" />

@@ -1,9 +1,7 @@
 ﻿/// <reference path="../typings/angularjs/angular.d.ts" />
 /// <reference path="../typings/angularjs/angular-route.d.ts" />
 /// <reference path="../typings/moment/moment.d.ts" />
-"use strict";
-
-module SUI {
+module Courier {
     "use strict";
     export function IsBlank(expression: any): boolean {
         if (expression === undefined) {
@@ -54,9 +52,14 @@ module SUI {
         export class Controller {
             static $inject: string[] = ["$scope"];
             constructor(public $scope: IScope) { }
-            private procedures: { [alias: string]: (void); }
-            addProcedure = (name: string, execute: (void)) => {
+            private procedures: { [alias: string]: (void); } = {};
+            addProcedure = (name: string, execute: (void)): void => {
                 this.procedures[name] = execute;
+            };
+            removeProcedure = (name: string): void => {
+                if (angular.isDefined(this.procedures[name])) {
+                    delete this.procedures[name];
+                }
             };
         }
     }
@@ -164,35 +167,35 @@ module SUI {
     }
 }
 
-var sui = angular.module("SUI", []);
+var courier = angular.module("Courier", []);
 
-sui.directive("suiProc", function () {
+courier.directive("suiProc", function () {
     return {
         restrict: "E",
-        scope: <SUI.Procedure.IScope> { name: "@", model: "@", type: "@", root: "@", run: "@" },
-        controller: SUI.Procedure.Controller,
-        require: ["suiProc", "^sui"],
+        scope: <Courier.Procedure.IScope> { name: "@", model: "@", type: "@", root: "@", run: "@" },
+        controller: Courier.Procedure.Controller,
+        require: ["suiProc"],
         link: function (
-            $scope: SUI.Procedure.IScope,
+            $scope: Courier.Procedure.IScope,
             iElement: angular.IAugmentedJQuery,
             iAttrs: angular.IAttributes,
-            controllers: [SUI.Procedure.Controller]) {
+            controllers: [Courier.Procedure.Controller]) {
             controllers[0].initialize();
         }
     };
 });
 
-sui.directive("suiProcParam", function () {
+courier.directive("suiProcParam", function () {
     return {
         restrict: "E",
-        scope: <SUI.Parameter.IScope> { name: "@", type: "@", value: "@", format: "@", required: "@" },
-        controller: SUI.Parameter.Controller,
+        scope: <Courier.Parameter.IScope> { name: "@", type: "@", value: "@", format: "@", required: "@" },
+        controller: Courier.Parameter.Controller,
         require: ["suiProcParam", "^suiProc"],
         link: function (
-            $scope: SUI.Procedure.IScope,
+            $scope: Courier.Procedure.IScope,
             iElement: angular.IAugmentedJQuery,
             iAttrs: angular.IAttributes,
-            controllers: [SUI.Parameter.Controller, SUI.Procedure.Controller]) {
+            controllers: [Courier.Parameter.Controller, Courier.Procedure.Controller]) {
             controllers[1].addParameter(controllers[0].factory);
             $scope.$on("$destroy", () => { controllers[1].removeParameter(controllers[0].factory); });
             $scope.$watch(function () { return controllers[0].value; }, function (newValue: any, oldValue: any) {

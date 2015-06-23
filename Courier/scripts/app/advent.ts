@@ -3,10 +3,11 @@
 /// <reference path="../typings/moment/moment.d.ts" />
 "use strict";
 
-var advent = angular.module("Advent", ["ngRoute", "SUI"]);
+var advent = angular.module("Advent", ["ngRoute", "Courier"]);
 
 advent.config(["$routeProvider", function ($routeProvider: angular.route.IRouteProvider) {
     $routeProvider
         .when("/home", { caseInsensitiveMatch: true, templateUrl: "views/home.html" })
         .otherwise({ redirectTo: "/home" });
 }]);
+
