@@ -12,4 +12,7 @@
     <sui-proc name="apiCountries" run="{{RunType}}">
         <sui-proc-param ng-if="Include" name="IncidentId" type="scope" value="IncidentId" format="date"></sui-proc-param>
     </sui-proc>
+    <sui-proc ng-if="Include" name="apiCurrencies" alias="Currencies" run="{{RunType}}">
+        <sui-proc-param ng-if="Include" name="IncidentId" type="scope" value="IncidentId" format="date"></sui-proc-param>
+    </sui-proc>
 </sui>

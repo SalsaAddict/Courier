@@ -77,9 +77,10 @@ var Courier;
     (function (Main) {
         "use strict";
         var Controller = (function () {
-            function Controller($scope) {
+            function Controller($scope, $log) {
                 var _this = this;
                 this.$scope = $scope;
+                this.$log = $log;
                 this.procedures = {};
                 this.addProcedure = function (name, execute) {
                     _this.procedures[name] = execute;
@@ -90,7 +91,7 @@ var Courier;
                     }
                 };
             }
-            Controller.$inject = ["$scope"];
+            Controller.$inject = ["$scope", "$log"];
             return Controller;
         })();
         Main.Controller = Controller;
@@ -148,6 +149,11 @@ var Courier;
             }
             Object.defineProperty(Controller.prototype, "name", {
                 get: function () { return this.$scope.name; },
+                enumerable: true,
+                configurable: true
+            });
+            Object.defineProperty(Controller.prototype, "alias", {
+                get: function () { return IfBlank(this.$scope.alias, this.$scope.name); },
                 enumerable: true,
                 configurable: true
             });
@@ -229,7 +235,7 @@ var Courier;
                     var value = undefined;
                     switch (this.type) {
                         case "route":
-                            value = this.$routeParams[this.$scope.value || this.$scope.name];
+                            value = this.$routeParams[IfBlank(this.$scope.value, this.$scope.name)];
                             break;
                         case "scope":
                             value = this.$parse(this.$scope.value)(this.$scope.$parent);
@@ -260,14 +266,27 @@ var Courier;
     })(Parameter = Courier.Parameter || (Courier.Parameter = {}));
 })(Courier || (Courier = {}));
 var courier = angular.module("Courier", []);
+courier.directive("sui", function () {
+    return {
+        restrict: "E",
+        scope: {},
+        controller: Courier.Main.Controller,
+        require: ["sui"],
+        link: function ($scope, iElement, iAttrs, controllers) { }
+    };
+});
 courier.directive("suiProc", function () {
     return {
         restrict: "E",
         scope: { name: "@", model: "@", type: "@", root: "@", run: "@" },
         controller: Courier.Procedure.Controller,
-        require: ["suiProc"],
+        require: ["suiProc", "?^sui"],
         link: function ($scope, iElement, iAttrs, controllers) {
             controllers[0].initialize();
+            if (controllers[1] !== null) {
+                controllers[1].addProcedure(controllers[0].alias, controllers[0].execute);
+                $scope.$on("$destroy", function () { controllers[1].removeProcedure(controllers[0].alias); });
+            }
         }
     };
 });

@@ -50,10 +50,10 @@ module Courier {
         "use strict";
         export interface IScope extends angular.IScope { }
         export class Controller {
-            static $inject: string[] = ["$scope"];
-            constructor(public $scope: IScope) { }
-            private procedures: { [alias: string]: (void); } = {};
-            addProcedure = (name: string, execute: (void)): void => {
+            static $inject: string[] = ["$scope", "$log"];
+            constructor(public $scope: IScope, public $log: angular.ILogService) { }
+            private procedures: { [alias: string]: Function; } = {};
+            addProcedure = (name: string, execute: Function): void => {
                 this.procedures[name] = execute;
             };
             removeProcedure = (name: string): void => {
@@ -66,7 +66,7 @@ module Courier {
     export module Procedure {
         "use strict";
         export interface IScope extends angular.IScope {
-            name: string; model: string; type: string; root: string; run: string;
+            name: string; alias: string; model: string; type: string; root: string; run: string;
         }
         export class Controller {
             static $inject: string[] = ["$scope", "$parse", "$log"];
@@ -75,6 +75,7 @@ module Courier {
                 public $parse: angular.IParseService,
                 public $log: angular.ILogService) { }
             get name(): string { return this.$scope.name; }
+            get alias(): string { return IfBlank(this.$scope.alias, this.$scope.name); }
             get model(): any { return (IsBlank(this.$scope.model)) ? undefined : this.$parse(this.$scope.model)(this.$scope.$parent); }
             set model(value: any) { this.$parse(this.$scope.model).assign(this.$scope.$parent, value); }
             get type(): string {
@@ -93,14 +94,14 @@ module Courier {
                 return (["auto", "once"].indexOf(option) >= 0) ? option : "manual";
             }
             private parameters: Parameter.IFactory[] = [];
-            addParameter = (parameterFactory: Parameter.IFactory) => {
+            addParameter = (parameterFactory: Parameter.IFactory): void => {
                 this.parameters.push(parameterFactory);
             }
-            removeParameter = (parameterFactory: Parameter.IFactory) => {
+            removeParameter = (parameterFactory: Parameter.IFactory): void => {
                 var i = this.parameters.indexOf(parameterFactory);
                 if (i >= 0) { this.parameters.splice(i, 1); }
             }
-            execute = () => {
+            execute = (): void => {
                 var procedure: { name: string; parameters: any[], type: string; } = {
                     name: this.name,
                     parameters: [],
@@ -111,7 +112,7 @@ module Courier {
                 });
                 this.$log.debug(angular.toJson(procedure));
             }
-            initialize = () => {
+            initialize = (): void => {
                 var run = (): void => { if (this.run !== "manual") { this.execute(); } };
                 this.$scope.$watch(() => { return this.parameters.length; }, (newValue: any, oldValue: any) => {
                     if (newValue !== oldValue) { if (this.run !== "manual") { run(); } }
@@ -152,7 +153,7 @@ module Courier {
             get value(): any {
                 var value: any = undefined;
                 switch (this.type) {
-                    case "route": value = this.$routeParams[this.$scope.value || this.$scope.name]; break;
+                    case "route": value = this.$routeParams[IfBlank(this.$scope.value, this.$scope.name)]; break;
                     case "scope": value = this.$parse(this.$scope.value)(this.$scope.$parent); break;
                     default: value = this.$scope.value; break;
                 }
@@ -169,18 +170,36 @@ module Courier {
 
 var courier = angular.module("Courier", []);
 
+courier.directive("sui", function () {
+    return {
+        restrict: "E",
+        scope: <Courier.Main.IScope> {},
+        controller: Courier.Main.Controller,
+        require: ["sui"],
+        link: function (
+            $scope: Courier.Procedure.IScope,
+            iElement: angular.IAugmentedJQuery,
+            iAttrs: angular.IAttributes,
+            controllers: [Courier.Main.Controller]) { }
+    };
+});
+
 courier.directive("suiProc", function () {
     return {
         restrict: "E",
         scope: <Courier.Procedure.IScope> { name: "@", model: "@", type: "@", root: "@", run: "@" },
         controller: Courier.Procedure.Controller,
-        require: ["suiProc"],
+        require: ["suiProc", "?^sui"],
         link: function (
             $scope: Courier.Procedure.IScope,
             iElement: angular.IAugmentedJQuery,
             iAttrs: angular.IAttributes,
-            controllers: [Courier.Procedure.Controller]) {
+            controllers: [Courier.Procedure.Controller, Courier.Main.Controller]) {
             controllers[0].initialize();
+            if (controllers[1] !== null) {
+                controllers[1].addProcedure(controllers[0].alias, controllers[0].execute);
+                $scope.$on("$destroy", function () { controllers[1].removeProcedure(controllers[0].alias); });
+            }
         }
     };
 });
