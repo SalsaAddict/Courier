@@ -1,18 +1,7 @@
-﻿<div ng-init="RunType='Auto'; IncidentId='today'"></div>
+﻿<div ng-init="Options = {Test: 'Hello'}">
 
-<input type="checkbox" ng-model="Include" />
-<input type="text" ng-model="IncidentId" />
-<select ng-model="RunType">
-    <option>Manual</option>
-    <option>Auto</option>
-    <option>Once</option>
-</select>
+    <sui-proc name="apiCountries" model="Options.Countries"></sui-proc>
 
-<sui>
-    <sui-proc name="apiCountries" run="{{RunType}}">
-        <sui-proc-param ng-if="Include" name="IncidentId" type="scope" value="IncidentId" format="date"></sui-proc-param>
-    </sui-proc>
-    <sui-proc ng-if="Include" name="apiCurrencies" alias="Currencies" run="{{RunType}}">
-        <sui-proc-param ng-if="Include" name="IncidentId" type="scope" value="IncidentId" format="date"></sui-proc-param>
-    </sui-proc>
-</sui>
+
+</div>
+{{Options}}

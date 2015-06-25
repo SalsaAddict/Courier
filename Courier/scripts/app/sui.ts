@@ -1,7 +1,7 @@
 ﻿/// <reference path="../typings/angularjs/angular.d.ts" />
 /// <reference path="../typings/angularjs/angular-route.d.ts" />
 /// <reference path="../typings/moment/moment.d.ts" />
-module Courier {
+module SUI {
     "use strict";
     export function IsBlank(expression: any): boolean {
         if (expression === undefined) {
@@ -21,8 +21,16 @@ module Courier {
     export function IfBlank(expression: any, defaultValue: any): any {
         return (IsBlank(expression)) ? defaultValue : expression;
     }
-    export function Option(value: any, defaultValue: string = ""): string {
-        return String(IfBlank(value, IfBlank(defaultValue, ""))).trim().toLowerCase();
+    export function Option(value: any, defaultValue: string = "", allowedValues: string[] = []): string {
+        var option: string = angular.lowercase(String(value)).trim();
+        if (allowedValues.length > 0) {
+            var found: boolean = false;
+            angular.forEach(allowedValues, (allowedValue: string) => {
+                if (angular.lowercase(allowedValue).trim() === option) { found = true; }
+            });
+            if (!found) { option = undefined; }
+        }
+        return IfBlank(option, angular.lowercase(defaultValue).trim());
     }
     export function Format(value: any, format: string): any {
         var dateFormat: string = "YYYY-MM-DD";
@@ -35,7 +43,7 @@ module Courier {
                     case "yesterday": formatted = moment().subtract(1, "day").format(dateFormat); break;
                     default:
                         formatted = moment(value).format(dateFormat);
-                        if (String(formatted).toLowerCase().indexOf("invalid") >= 0) { formatted = null; }
+                        if (angular.lowercase(formatted).indexOf("invalid") >= 0) { formatted = null; }
                         break;
                 }
                 break;
@@ -61,6 +69,7 @@ module Courier {
                     delete this.procedures[name];
                 }
             };
+            execute = (name: string): void => { this.procedures[name](); }
         }
     }
     export module Procedure {
@@ -79,20 +88,18 @@ module Courier {
             get model(): any { return (IsBlank(this.$scope.model)) ? undefined : this.$parse(this.$scope.model)(this.$scope.$parent); }
             set model(value: any) { this.$parse(this.$scope.model).assign(this.$scope.$parent, value); }
             get type(): string {
-                if (angular.isDefined(this.model)) {
+                if (IsBlank(this.$scope.model)) {
+                    return "execute";
+                } else {
                     if (IsBlank(this.$scope.type)) {
                         return (IsBlank(this.$scope.root)) ? "array" : "object";
                     } else {
-                        var option = Option(this.$scope.type);
-                        return (["singleton", "object"].indexOf(option) >= 0) ? option : "array";
+                        return Option(this.$scope.type, "array", ["singleton", "object"]);
                     }
-                } else { return "execute"; }
+                }
             }
             get root(): string { return (this.type === "object") ? IfBlank(this.$scope.root, undefined) : undefined; }
-            get run(): string {
-                var option = Option(this.$scope.run);
-                return (["auto", "once"].indexOf(option) >= 0) ? option : "manual";
-            }
+            get run(): string { return Option(this.$scope.run, "manual", ["auto", "once"]); }
             private parameters: Parameter.IFactory[] = [];
             addParameter = (parameterFactory: Parameter.IFactory): void => {
                 this.parameters.push(parameterFactory);
@@ -101,26 +108,25 @@ module Courier {
                 var i = this.parameters.indexOf(parameterFactory);
                 if (i >= 0) { this.parameters.splice(i, 1); }
             }
+            empty = (): void => { if (!IsBlank(this.$scope.model)) { this.model = (this.type === "array") ? [] : {}; } }
             execute = (): void => {
+                this.empty();
                 var procedure: { name: string; parameters: any[], type: string; } = {
-                    name: this.name,
-                    parameters: [],
-                    type: this.type
+                    name: this.name, parameters: [], type: this.type
                 };
                 angular.forEach(this.parameters, (parameterFactory: Parameter.IFactory) => {
                     procedure.parameters.push(parameterFactory());
                 });
-                this.$log.debug(angular.toJson(procedure));
+                this.$log.debug("Execute:" + angular.toJson(procedure));
             }
             initialize = (): void => {
-                var run = (): void => { if (this.run !== "manual") { this.execute(); } };
                 this.$scope.$watch(() => { return this.parameters.length; }, (newValue: any, oldValue: any) => {
-                    if (newValue !== oldValue) { if (this.run !== "manual") { run(); } }
+                    if (newValue !== oldValue) { if (this.run === "auto") { this.execute(); } }
                 });
                 this.$scope.$watch(() => { return this.run; }, (newValue: any, oldValue: any) => {
-                    if (newValue !== oldValue) { if (this.run !== "manual") { run(); } }
+                    if (newValue !== oldValue) { if (this.run !== "manual") { this.execute(); } }
                 });
-                run();
+                if (this.run !== "manual") { this.execute(); } else { this.empty(); }
             }
         }
     }
@@ -146,8 +152,7 @@ module Courier {
                 if (IsBlank(this.$scope.type)) {
                     return (IsBlank(this.$scope.value)) ? "route" : "value";
                 } else {
-                    var option = Option(this.$scope.type);
-                    return (["route", "scope"].indexOf(option) >= 0) ? option : "value";
+                    return Option(this.$scope.type, "value", ["route", "scope"]);
                 }
             }
             get value(): any {
@@ -168,33 +173,33 @@ module Courier {
     }
 }
 
-var courier = angular.module("Courier", []);
+var sui = angular.module("sui", []);
 
-courier.directive("sui", function () {
+sui.directive("sui", function () {
     return {
         restrict: "E",
-        scope: <Courier.Main.IScope> {},
-        controller: Courier.Main.Controller,
+        scope: <SUI.Main.IScope> {},
+        controller: SUI.Main.Controller,
         require: ["sui"],
         link: function (
-            $scope: Courier.Procedure.IScope,
+            $scope: SUI.Procedure.IScope,
             iElement: angular.IAugmentedJQuery,
             iAttrs: angular.IAttributes,
-            controllers: [Courier.Main.Controller]) { }
+            controllers: [SUI.Main.Controller]) { }
     };
 });
 
-courier.directive("suiProc", function () {
+sui.directive("suiProc", function () {
     return {
         restrict: "E",
-        scope: <Courier.Procedure.IScope> { name: "@", model: "@", type: "@", root: "@", run: "@" },
-        controller: Courier.Procedure.Controller,
+        scope: <SUI.Procedure.IScope> { name: "@", model: "@", type: "@", root: "@", run: "@" },
+        controller: SUI.Procedure.Controller,
         require: ["suiProc", "?^sui"],
         link: function (
-            $scope: Courier.Procedure.IScope,
+            $scope: SUI.Procedure.IScope,
             iElement: angular.IAugmentedJQuery,
             iAttrs: angular.IAttributes,
-            controllers: [Courier.Procedure.Controller, Courier.Main.Controller]) {
+            controllers: [SUI.Procedure.Controller, SUI.Main.Controller]) {
             controllers[0].initialize();
             if (controllers[1] !== null) {
                 controllers[1].addProcedure(controllers[0].alias, controllers[0].execute);
@@ -204,17 +209,17 @@ courier.directive("suiProc", function () {
     };
 });
 
-courier.directive("suiProcParam", function () {
+sui.directive("suiProcParam", function () {
     return {
         restrict: "E",
-        scope: <Courier.Parameter.IScope> { name: "@", type: "@", value: "@", format: "@", required: "@" },
-        controller: Courier.Parameter.Controller,
+        scope: <SUI.Parameter.IScope> { name: "@", type: "@", value: "@", format: "@", required: "@" },
+        controller: SUI.Parameter.Controller,
         require: ["suiProcParam", "^suiProc"],
         link: function (
-            $scope: Courier.Procedure.IScope,
+            $scope: SUI.Procedure.IScope,
             iElement: angular.IAugmentedJQuery,
             iAttrs: angular.IAttributes,
-            controllers: [Courier.Parameter.Controller, Courier.Procedure.Controller]) {
+            controllers: [SUI.Parameter.Controller, SUI.Procedure.Controller]) {
             controllers[1].addParameter(controllers[0].factory);
             $scope.$on("$destroy", () => { controllers[1].removeParameter(controllers[0].factory); });
             $scope.$watch(function () { return controllers[0].value; }, function (newValue: any, oldValue: any) {

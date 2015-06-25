@@ -1,8 +1,8 @@
 /// <reference path="../typings/angularjs/angular.d.ts" />
 /// <reference path="../typings/angularjs/angular-route.d.ts" />
 /// <reference path="../typings/moment/moment.d.ts" />
-var Courier;
-(function (Courier) {
+var SUI;
+(function (SUI) {
     "use strict";
     function IsBlank(expression) {
         if (expression === undefined) {
@@ -24,16 +24,29 @@ var Courier;
             return false;
         }
     }
-    Courier.IsBlank = IsBlank;
+    SUI.IsBlank = IsBlank;
     function IfBlank(expression, defaultValue) {
         return (IsBlank(expression)) ? defaultValue : expression;
     }
-    Courier.IfBlank = IfBlank;
-    function Option(value, defaultValue) {
+    SUI.IfBlank = IfBlank;
+    function Option(value, defaultValue, allowedValues) {
         if (defaultValue === void 0) { defaultValue = ""; }
-        return String(IfBlank(value, IfBlank(defaultValue, ""))).trim().toLowerCase();
+        if (allowedValues === void 0) { allowedValues = []; }
+        var option = angular.lowercase(String(value)).trim();
+        if (allowedValues.length > 0) {
+            var found = false;
+            angular.forEach(allowedValues, function (allowedValue) {
+                if (angular.lowercase(allowedValue).trim() === option) {
+                    found = true;
+                }
+            });
+            if (!found) {
+                option = undefined;
+            }
+        }
+        return IfBlank(option, angular.lowercase(defaultValue).trim());
     }
-    Courier.Option = Option;
+    SUI.Option = Option;
     function Format(value, format) {
         var dateFormat = "YYYY-MM-DD";
         var formatted;
@@ -51,7 +64,7 @@ var Courier;
                         break;
                     default:
                         formatted = moment(value).format(dateFormat);
-                        if (String(formatted).toLowerCase().indexOf("invalid") >= 0) {
+                        if (angular.lowercase(formatted).indexOf("invalid") >= 0) {
                             formatted = null;
                         }
                         break;
@@ -72,7 +85,7 @@ var Courier;
         }
         return formatted;
     }
-    Courier.Format = Format;
+    SUI.Format = Format;
     var Main;
     (function (Main) {
         "use strict";
@@ -90,12 +103,13 @@ var Courier;
                         delete _this.procedures[name];
                     }
                 };
+                this.execute = function (name) { _this.procedures[name](); };
             }
             Controller.$inject = ["$scope", "$log"];
             return Controller;
         })();
         Main.Controller = Controller;
-    })(Main = Courier.Main || (Courier.Main = {}));
+    })(Main = SUI.Main || (SUI.Main = {}));
     var Procedure;
     (function (Procedure) {
         "use strict";
@@ -115,36 +129,40 @@ var Courier;
                         _this.parameters.splice(i, 1);
                     }
                 };
+                this.empty = function () { if (!IsBlank(_this.$scope.model)) {
+                    _this.model = (_this.type === "array") ? [] : {};
+                } };
                 this.execute = function () {
+                    _this.empty();
                     var procedure = {
-                        name: _this.name,
-                        parameters: [],
-                        type: _this.type
+                        name: _this.name, parameters: [], type: _this.type
                     };
                     angular.forEach(_this.parameters, function (parameterFactory) {
                         procedure.parameters.push(parameterFactory());
                     });
-                    _this.$log.debug(angular.toJson(procedure));
+                    _this.$log.debug("Execute:" + angular.toJson(procedure));
                 };
                 this.initialize = function () {
-                    var run = function () { if (_this.run !== "manual") {
-                        _this.execute();
-                    } };
                     _this.$scope.$watch(function () { return _this.parameters.length; }, function (newValue, oldValue) {
                         if (newValue !== oldValue) {
-                            if (_this.run !== "manual") {
-                                run();
+                            if (_this.run === "auto") {
+                                _this.execute();
                             }
                         }
                     });
                     _this.$scope.$watch(function () { return _this.run; }, function (newValue, oldValue) {
                         if (newValue !== oldValue) {
                             if (_this.run !== "manual") {
-                                run();
+                                _this.execute();
                             }
                         }
                     });
-                    run();
+                    if (_this.run !== "manual") {
+                        _this.execute();
+                    }
+                    else {
+                        _this.empty();
+                    }
                 };
             }
             Object.defineProperty(Controller.prototype, "name", {
@@ -165,17 +183,16 @@ var Courier;
             });
             Object.defineProperty(Controller.prototype, "type", {
                 get: function () {
-                    if (angular.isDefined(this.model)) {
+                    if (IsBlank(this.$scope.model)) {
+                        return "execute";
+                    }
+                    else {
                         if (IsBlank(this.$scope.type)) {
                             return (IsBlank(this.$scope.root)) ? "array" : "object";
                         }
                         else {
-                            var option = Option(this.$scope.type);
-                            return (["singleton", "object"].indexOf(option) >= 0) ? option : "array";
+                            return Option(this.$scope.type, "array", ["singleton", "object"]);
                         }
-                    }
-                    else {
-                        return "execute";
                     }
                 },
                 enumerable: true,
@@ -187,10 +204,7 @@ var Courier;
                 configurable: true
             });
             Object.defineProperty(Controller.prototype, "run", {
-                get: function () {
-                    var option = Option(this.$scope.run);
-                    return (["auto", "once"].indexOf(option) >= 0) ? option : "manual";
-                },
+                get: function () { return Option(this.$scope.run, "manual", ["auto", "once"]); },
                 enumerable: true,
                 configurable: true
             });
@@ -198,7 +212,7 @@ var Courier;
             return Controller;
         })();
         Procedure.Controller = Controller;
-    })(Procedure = Courier.Procedure || (Courier.Procedure = {}));
+    })(Procedure = SUI.Procedure || (SUI.Procedure = {}));
     var Parameter;
     (function (Parameter) {
         "use strict";
@@ -223,8 +237,7 @@ var Courier;
                         return (IsBlank(this.$scope.value)) ? "route" : "value";
                     }
                     else {
-                        var option = Option(this.$scope.type);
-                        return (["route", "scope"].indexOf(option) >= 0) ? option : "value";
+                        return Option(this.$scope.type, "value", ["route", "scope"]);
                     }
                 },
                 enumerable: true,
@@ -263,23 +276,23 @@ var Courier;
             return Controller;
         })();
         Parameter.Controller = Controller;
-    })(Parameter = Courier.Parameter || (Courier.Parameter = {}));
-})(Courier || (Courier = {}));
-var courier = angular.module("Courier", []);
-courier.directive("sui", function () {
+    })(Parameter = SUI.Parameter || (SUI.Parameter = {}));
+})(SUI || (SUI = {}));
+var sui = angular.module("sui", []);
+sui.directive("sui", function () {
     return {
         restrict: "E",
         scope: {},
-        controller: Courier.Main.Controller,
+        controller: SUI.Main.Controller,
         require: ["sui"],
         link: function ($scope, iElement, iAttrs, controllers) { }
     };
 });
-courier.directive("suiProc", function () {
+sui.directive("suiProc", function () {
     return {
         restrict: "E",
         scope: { name: "@", model: "@", type: "@", root: "@", run: "@" },
-        controller: Courier.Procedure.Controller,
+        controller: SUI.Procedure.Controller,
         require: ["suiProc", "?^sui"],
         link: function ($scope, iElement, iAttrs, controllers) {
             controllers[0].initialize();
@@ -290,11 +303,11 @@ courier.directive("suiProc", function () {
         }
     };
 });
-courier.directive("suiProcParam", function () {
+sui.directive("suiProcParam", function () {
     return {
         restrict: "E",
         scope: { name: "@", type: "@", value: "@", format: "@", required: "@" },
-        controller: Courier.Parameter.Controller,
+        controller: SUI.Parameter.Controller,
         require: ["suiProcParam", "^suiProc"],
         link: function ($scope, iElement, iAttrs, controllers) {
             controllers[1].addParameter(controllers[0].factory);

@@ -67,25 +67,14 @@
     <Content Include="content\font-awesome.min.css" />
     <Content Include="fonts\fontawesome-webfont.svg" />
     <Content Include="fonts\glyphicons-halflings-regular.svg" />
-    <Content Include="fonts\glyphicons-halflings-regular.woff2" />
-    <Content Include="fonts\glyphicons-halflings-regular.woff" />
-    <Content Include="fonts\glyphicons-halflings-regular.ttf" />
-    <Content Include="fonts\glyphicons-halflings-regular.eot" />
-    <Content Include="content\bootstrap-theme.css.map" />
-    <Content Include="content\bootstrap.css.map" />
     <Content Include="main.html" />
     <Content Include="pah.png" />
+    <Content Include="scripts\angular-mocks.js" />
     <Content Include="scripts\angular-route.js" />
     <Content Include="scripts\angular-route.min.js" />
+    <Content Include="scripts\angular-route.min.js.map" />
     <Content Include="scripts\angular.js" />
     <Content Include="scripts\angular.min.js" />
-    <Content Include="scripts\angular.min.js.map" />
-    <Content Include="scripts\angular-route.min.js.map" />
-    <Content Include="fonts\fontawesome-webfont.woff" />
-    <Content Include="fonts\fontawesome-webfont.ttf" />
-    <Content Include="fonts\fontawesome-webfont.eot" />
-    <Content Include="fonts\FontAwesome.otf" />
-    <Content Include="scripts\angular-mocks.js" />
     <Content Include="scripts\app\advent.js" />
     <Content Include="scripts\app\advent.min.js">
       <DependentUpon>advent.js</DependentUpon>
@@ -94,8 +83,29 @@
     <Content Include="scripts\app\sui.min.js">
       <DependentUpon>sui.js</DependentUpon>
     </Content>
+    <Content Include="scripts\app\sui.js.map" />
+    <Content Include="scripts\app\sui.min.js.map">
+      <DependentUpon>sui.min.js</DependentUpon>
+    </Content>
+    <Content Include="scripts\app\advent.js.map" />
+    <Content Include="scripts\app\advent.min.js.map">
+      <DependentUpon>advent.min.js</DependentUpon>
+    </Content>
     <Content Include="scripts\bootstrap.js" />
     <Content Include="scripts\bootstrap.min.js" />
+    <Content Include="fonts\glyphicons-halflings-regular.woff2" />
+    <Content Include="fonts\glyphicons-halflings-regular.woff" />
+    <Content Include="fonts\glyphicons-halflings-regular.ttf" />
+    <Content Include="fonts\glyphicons-halflings-regular.eot" />
+    <Content Include="content\bootstrap-theme.css.map" />
+    <Content Include="content\bootstrap.css.map" />
+    <Content Include="fonts\fontawesome-webfont.woff" />
+    <Content Include="fonts\fontawesome-webfont.ttf" />
+    <Content Include="fonts\fontawesome-webfont.eot" />
+    <Content Include="fonts\FontAwesome.otf" />
+    <Content Include="packages.config" />
+    <Content Include="scripts\angular.min.js.map" />
+    <None Include="scripts\jquery-2.1.4.intellisense.js" />
     <Content Include="scripts\i18n\angular-locale_aa-dj.js" />
     <Content Include="scripts\i18n\angular-locale_aa-er.js" />
     <Content Include="scripts\i18n\angular-locale_aa-et.js" />
@@ -839,31 +849,9 @@
     <Content Include="scripts\i18n\angular-locale_zh.js" />
     <Content Include="scripts\i18n\angular-locale_zu-za.js" />
     <Content Include="scripts\i18n\angular-locale_zu.js" />
-    <Content Include="packages.config" />
-    <Content Include="scripts\app\sui.js.map" />
-    <Content Include="scripts\app\sui.min.js.map">
-      <DependentUpon>sui.min.js</DependentUpon>
-    </Content>
-    <Content Include="scripts\bootstrap.min.js.map">
-      <DependentUpon>bootstrap.min.js</DependentUpon>
-    </Content>
-    <Content Include="scripts\app\advent.js.map" />
-    <Content Include="scripts\app\advent.min.js.map">
-      <DependentUpon>advent.min.js</DependentUpon>
-    </Content>
-    <None Include="scripts\jquery-2.1.4.intellisense.js" />
     <Content Include="scripts\jquery-2.1.4.js" />
     <Content Include="scripts\jquery-2.1.4.min.js" />
     <Content Include="scripts\jquery-2.1.4.min.map" />
-    <Content Include="scripts\jquery-2.1.4.min.js.map">
-      <DependentUpon>jquery-2.1.4.min.js</DependentUpon>
-    </Content>
-    <Content Include="scripts\moment-with-locales.min.js.map">
-      <DependentUpon>moment-with-locales.min.js</DependentUpon>
-    </Content>
-    <Content Include="scripts\moment.min.js.map">
-      <DependentUpon>moment.min.js</DependentUpon>
-    </Content>
     <None Include="Web.Debug.config">
       <DependentUpon>Web.config</DependentUpon>
     </None>

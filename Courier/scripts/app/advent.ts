@@ -3,7 +3,7 @@
 /// <reference path="../typings/moment/moment.d.ts" />
 "use strict";
 
-var advent = angular.module("Advent", ["ngRoute", "Courier"]);
+var advent = angular.module("Advent", ["ngRoute", "sui"]);
 
 advent.config(["$routeProvider", function ($routeProvider: angular.route.IRouteProvider) {
     $routeProvider
