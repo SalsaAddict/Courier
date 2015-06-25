@@ -1,8 +1,8 @@
 /// <reference path="../typings/angularjs/angular.d.ts" />
 /// <reference path="../typings/angularjs/angular-route.d.ts" />
 /// <reference path="../typings/moment/moment.d.ts" />
-var SUI;
-(function (SUI) {
+var Courier;
+(function (Courier) {
     "use strict";
     function IsBlank(expression) {
         if (expression === undefined) {
@@ -24,11 +24,11 @@ var SUI;
             return false;
         }
     }
-    SUI.IsBlank = IsBlank;
+    Courier.IsBlank = IsBlank;
     function IfBlank(expression, defaultValue) {
         return (IsBlank(expression)) ? defaultValue : expression;
     }
-    SUI.IfBlank = IfBlank;
+    Courier.IfBlank = IfBlank;
     function Option(value, defaultValue, allowedValues) {
         if (defaultValue === void 0) { defaultValue = ""; }
         if (allowedValues === void 0) { allowedValues = []; }
@@ -46,8 +46,11 @@ var SUI;
         }
         return IfBlank(option, angular.lowercase(defaultValue).trim());
     }
-    SUI.Option = Option;
-    function Format(value, format) {
+    Courier.Option = Option;
+    function Cast(value, format) {
+        if (IsBlank(value)) {
+            return undefined;
+        }
         var dateFormat = "YYYY-MM-DD";
         var formatted;
         switch (Option(format)) {
@@ -85,7 +88,7 @@ var SUI;
         }
         return formatted;
     }
-    SUI.Format = Format;
+    Courier.Cast = Cast;
     var Main;
     (function (Main) {
         "use strict";
@@ -109,16 +112,17 @@ var SUI;
             return Controller;
         })();
         Main.Controller = Controller;
-    })(Main = SUI.Main || (SUI.Main = {}));
+    })(Main = Courier.Main || (Courier.Main = {}));
     var Procedure;
     (function (Procedure) {
         "use strict";
         var Controller = (function () {
-            function Controller($scope, $parse, $log) {
+            function Controller($scope, $parse, $log, $window) {
                 var _this = this;
                 this.$scope = $scope;
                 this.$parse = $parse;
                 this.$log = $log;
+                this.$window = $window;
                 this.parameters = [];
                 this.addParameter = function (parameterFactory) {
                     _this.parameters.push(parameterFactory);
@@ -135,7 +139,7 @@ var SUI;
                 this.execute = function () {
                     _this.empty();
                     var procedure = {
-                        name: _this.name, parameters: [], type: _this.type
+                        name: _this.name, parameters: [], type: _this.type, token: IfBlank(_this.$window.localStorage.getItem("token"), null)
                     };
                     angular.forEach(_this.parameters, function (parameterFactory) {
                         procedure.parameters.push(parameterFactory());
@@ -176,8 +180,14 @@ var SUI;
                 configurable: true
             });
             Object.defineProperty(Controller.prototype, "model", {
-                get: function () { return (IsBlank(this.$scope.model)) ? undefined : this.$parse(this.$scope.model)(this.$scope.$parent); },
-                set: function (value) { this.$parse(this.$scope.model).assign(this.$scope.$parent, value); },
+                get: function () {
+                    return (IsBlank(this.$scope.model)) ? undefined : this.$parse(this.$scope.model)(this.$scope.$parent);
+                },
+                set: function (value) {
+                    if (!IsBlank(this.$scope.model)) {
+                        this.$parse(this.$scope.model).assign(this.$scope.$parent, value);
+                    }
+                },
                 enumerable: true,
                 configurable: true
             });
@@ -208,11 +218,11 @@ var SUI;
                 enumerable: true,
                 configurable: true
             });
-            Controller.$inject = ["$scope", "$parse", "$log"];
+            Controller.$inject = ["$scope", "$parse", "$log", "$window"];
             return Controller;
         })();
         Procedure.Controller = Controller;
-    })(Procedure = SUI.Procedure || (SUI.Procedure = {}));
+    })(Procedure = Courier.Procedure || (Courier.Procedure = {}));
     var Parameter;
     (function (Parameter) {
         "use strict";
@@ -257,7 +267,7 @@ var SUI;
                             value = this.$scope.value;
                             break;
                     }
-                    return IfBlank(Format(value, this.$scope.format), null);
+                    return IfBlank(Cast(value, this.$scope.format), null);
                 },
                 enumerable: true,
                 configurable: true
@@ -276,39 +286,40 @@ var SUI;
             return Controller;
         })();
         Parameter.Controller = Controller;
-    })(Parameter = SUI.Parameter || (SUI.Parameter = {}));
-})(SUI || (SUI = {}));
-var sui = angular.module("sui", []);
-sui.directive("sui", function () {
+    })(Parameter = Courier.Parameter || (Courier.Parameter = {}));
+})(Courier || (Courier = {}));
+var courier = angular.module("Courier", []);
+courier.directive("courier", function () {
     return {
         restrict: "E",
         scope: {},
-        controller: SUI.Main.Controller,
-        require: ["sui"],
+        controller: Courier.Main.Controller,
+        require: ["courier"],
         link: function ($scope, iElement, iAttrs, controllers) { }
     };
 });
-sui.directive("suiProc", function () {
+courier.directive("couProcedure", function () {
     return {
         restrict: "E",
         scope: { name: "@", model: "@", type: "@", root: "@", run: "@" },
-        controller: SUI.Procedure.Controller,
-        require: ["suiProc", "?^sui"],
+        controller: Courier.Procedure.Controller,
+        require: ["couProcedure", "^courier"],
         link: function ($scope, iElement, iAttrs, controllers) {
             controllers[0].initialize();
-            if (controllers[1] !== null) {
-                controllers[1].addProcedure(controllers[0].alias, controllers[0].execute);
-                $scope.$on("$destroy", function () { controllers[1].removeProcedure(controllers[0].alias); });
-            }
+            controllers[1].addProcedure(controllers[0].alias, controllers[0].execute);
+            $scope.$on("$destroy", function () {
+                controllers[0].model = undefined;
+                controllers[1].removeProcedure(controllers[0].alias);
+            });
         }
     };
 });
-sui.directive("suiProcParam", function () {
+courier.directive("couParameter", function () {
     return {
         restrict: "E",
         scope: { name: "@", type: "@", value: "@", format: "@", required: "@" },
-        controller: SUI.Parameter.Controller,
-        require: ["suiProcParam", "^suiProc"],
+        controller: Courier.Parameter.Controller,
+        require: ["couParameter", "^couProcedure"],
         link: function ($scope, iElement, iAttrs, controllers) {
             controllers[1].addParameter(controllers[0].factory);
             $scope.$on("$destroy", function () { controllers[1].removeParameter(controllers[0].factory); });

@@ -1,7 +1,7 @@
 ﻿/// <reference path="../typings/angularjs/angular.d.ts" />
 /// <reference path="../typings/angularjs/angular-route.d.ts" />
 /// <reference path="../typings/moment/moment.d.ts" />
-module SUI {
+module Courier {
     "use strict";
     export function IsBlank(expression: any): boolean {
         if (expression === undefined) {
@@ -32,7 +32,8 @@ module SUI {
         }
         return IfBlank(option, angular.lowercase(defaultValue).trim());
     }
-    export function Format(value: any, format: string): any {
+    export function Cast(value: any, format: string): any {
+        if (IsBlank(value)) { return undefined; }
         var dateFormat: string = "YYYY-MM-DD";
         var formatted: any;
         switch (Option(format)) {
@@ -78,15 +79,22 @@ module SUI {
             name: string; alias: string; model: string; type: string; root: string; run: string;
         }
         export class Controller {
-            static $inject: string[] = ["$scope", "$parse", "$log"];
+            static $inject: string[] = ["$scope", "$parse", "$log", "$window"];
             constructor(
                 public $scope: IScope,
                 public $parse: angular.IParseService,
-                public $log: angular.ILogService) { }
+                public $log: angular.ILogService,
+                public $window: angular.IWindowService) { }
             get name(): string { return this.$scope.name; }
             get alias(): string { return IfBlank(this.$scope.alias, this.$scope.name); }
-            get model(): any { return (IsBlank(this.$scope.model)) ? undefined : this.$parse(this.$scope.model)(this.$scope.$parent); }
-            set model(value: any) { this.$parse(this.$scope.model).assign(this.$scope.$parent, value); }
+            get model(): any {
+                return (IsBlank(this.$scope.model)) ? undefined : this.$parse(this.$scope.model)(this.$scope.$parent);
+            }
+            set model(value: any) {
+                if (!IsBlank(this.$scope.model)) {
+                    this.$parse(this.$scope.model).assign(this.$scope.$parent, value);
+                }
+            }
             get type(): string {
                 if (IsBlank(this.$scope.model)) {
                     return "execute";
@@ -111,8 +119,8 @@ module SUI {
             empty = (): void => { if (!IsBlank(this.$scope.model)) { this.model = (this.type === "array") ? [] : {}; } }
             execute = (): void => {
                 this.empty();
-                var procedure: { name: string; parameters: any[], type: string; } = {
-                    name: this.name, parameters: [], type: this.type
+                var procedure: { name: string; parameters: any[], type: string; token: string } = {
+                    name: this.name, parameters: [], type: this.type, token: IfBlank(this.$window.localStorage.getItem("token"), null)
                 };
                 angular.forEach(this.parameters, (parameterFactory: Parameter.IFactory) => {
                     procedure.parameters.push(parameterFactory());
@@ -162,7 +170,7 @@ module SUI {
                     case "scope": value = this.$parse(this.$scope.value)(this.$scope.$parent); break;
                     default: value = this.$scope.value; break;
                 }
-                return IfBlank(Format(value, this.$scope.format), null);
+                return IfBlank(Cast(value, this.$scope.format), null);
             }
             get xml(): boolean { return (Option(this.$scope.format) === "xml"); }
             get required(): boolean { return (Option(this.$scope.required) === "true"); }
@@ -173,53 +181,54 @@ module SUI {
     }
 }
 
-var sui = angular.module("sui", []);
+var courier = angular.module("Courier", []);
 
-sui.directive("sui", function () {
+courier.directive("courier", function () {
     return {
         restrict: "E",
-        scope: <SUI.Main.IScope> {},
-        controller: SUI.Main.Controller,
-        require: ["sui"],
+        scope: <Courier.Main.IScope> {},
+        controller: Courier.Main.Controller,
+        require: ["courier"],
         link: function (
-            $scope: SUI.Procedure.IScope,
+            $scope: Courier.Procedure.IScope,
             iElement: angular.IAugmentedJQuery,
             iAttrs: angular.IAttributes,
-            controllers: [SUI.Main.Controller]) { }
+            controllers: [Courier.Main.Controller]) { }
     };
 });
 
-sui.directive("suiProc", function () {
+courier.directive("couProcedure", function () {
     return {
         restrict: "E",
-        scope: <SUI.Procedure.IScope> { name: "@", model: "@", type: "@", root: "@", run: "@" },
-        controller: SUI.Procedure.Controller,
-        require: ["suiProc", "?^sui"],
+        scope: <Courier.Procedure.IScope> { name: "@", model: "@", type: "@", root: "@", run: "@" },
+        controller: Courier.Procedure.Controller,
+        require: ["couProcedure", "^courier"],
         link: function (
-            $scope: SUI.Procedure.IScope,
+            $scope: Courier.Procedure.IScope,
             iElement: angular.IAugmentedJQuery,
             iAttrs: angular.IAttributes,
-            controllers: [SUI.Procedure.Controller, SUI.Main.Controller]) {
+            controllers: [Courier.Procedure.Controller, Courier.Main.Controller]) {
             controllers[0].initialize();
-            if (controllers[1] !== null) {
-                controllers[1].addProcedure(controllers[0].alias, controllers[0].execute);
-                $scope.$on("$destroy", function () { controllers[1].removeProcedure(controllers[0].alias); });
-            }
+            controllers[1].addProcedure(controllers[0].alias, controllers[0].execute);
+            $scope.$on("$destroy", function () {
+                controllers[0].model = undefined;
+                controllers[1].removeProcedure(controllers[0].alias);
+            });
         }
     };
 });
 
-sui.directive("suiProcParam", function () {
+courier.directive("couParameter", function () {
     return {
         restrict: "E",
-        scope: <SUI.Parameter.IScope> { name: "@", type: "@", value: "@", format: "@", required: "@" },
-        controller: SUI.Parameter.Controller,
-        require: ["suiProcParam", "^suiProc"],
+        scope: <Courier.Parameter.IScope> { name: "@", type: "@", value: "@", format: "@", required: "@" },
+        controller: Courier.Parameter.Controller,
+        require: ["couParameter", "^couProcedure"],
         link: function (
-            $scope: SUI.Procedure.IScope,
+            $scope: Courier.Procedure.IScope,
             iElement: angular.IAugmentedJQuery,
             iAttrs: angular.IAttributes,
-            controllers: [SUI.Parameter.Controller, SUI.Procedure.Controller]) {
+            controllers: [Courier.Parameter.Controller, Courier.Procedure.Controller]) {
             controllers[1].addParameter(controllers[0].factory);
             $scope.$on("$destroy", () => { controllers[1].removeParameter(controllers[0].factory); });
             $scope.$watch(function () { return controllers[0].value; }, function (newValue: any, oldValue: any) {

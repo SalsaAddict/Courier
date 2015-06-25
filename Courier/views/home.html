@@ -1,7 +1,9 @@
 ﻿<div ng-init="Options = {Test: 'Hello'}">
-
-    <sui-proc name="apiCountries" model="Options.Countries"></sui-proc>
-
-
+    <input type="checkbox" ng-model="Options.apiCountries" />
+    <courier test="1">
+        <cou-procedure ng-if="Options.apiCountries" name="apiCountries" model="Options.Countries" run="once">
+            <cou-parameter name="IncidentId"></cou-parameter>
+        </cou-procedure>
+    </courier>
 </div>
 {{Options}}
