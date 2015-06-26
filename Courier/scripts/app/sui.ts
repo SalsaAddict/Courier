@@ -57,7 +57,7 @@ module Courier {
     }
     export module Main {
         "use strict";
-        export interface IScope extends angular.IScope { }
+        export interface IScope extends angular.IScope { execute: Function; }
         export class Controller {
             static $inject: string[] = ["$scope", "$log"];
             constructor(public $scope: IScope, public $log: angular.ILogService) { }
@@ -70,7 +70,7 @@ module Courier {
                     delete this.procedures[name];
                 }
             };
-            execute = (name: string): void => { this.procedures[name](); }
+            execute = this.$scope.execute = (name: string): void => { this.procedures[name](); }
         }
     }
     export module Procedure {
@@ -128,13 +128,12 @@ module Courier {
                 this.$log.debug("Execute:" + angular.toJson(procedure));
             }
             initialize = (): void => {
-                this.$scope.$watch(() => { return this.parameters.length; }, (newValue: any, oldValue: any) => {
-                    if (newValue !== oldValue) { if (this.run === "auto") { this.execute(); } }
-                });
-                this.$scope.$watch(() => { return this.run; }, (newValue: any, oldValue: any) => {
-                    if (newValue !== oldValue) { if (this.run !== "manual") { this.execute(); } }
-                });
                 if (this.run !== "manual") { this.execute(); } else { this.empty(); }
+                if (this.run === "auto") {
+                    this.$scope.$watch(() => { return this.parameters.length; }, (newValue: any, oldValue: any) => {
+                        if (newValue !== oldValue) { this.execute(); }
+                    });
+                }
             }
         }
     }
@@ -179,9 +178,79 @@ module Courier {
             }
         }
     }
+    export module Form {
+        export interface IScope extends angular.IScope {
+            heading: string; subheading: string;
+            form: angular.IFormController;
+            back: string; save: string; delete: string;
+        }
+        export class Controller {
+            static $inject: string[] = ["$scope", "$window", "$location", "$route"];
+            constructor(
+                public $scope: IScope,
+                public $window: angular.IWindowService,
+                public $location: angular.ILocationService,
+                public $route: angular.route.IRouteService) { }
+            get heading(): string { return IfBlank(this.$scope.heading, undefined); }
+            get subheading(): string { return IfBlank(this.$scope.subheading, undefined); }
+            back = () => {
+                if (IsBlank(this.$scope.back)) {
+                    this.$window.history.back();
+                } else {
+                    this.$location.path(this.$scope.back);
+                }
+            }
+            undo = () => { this.$route.reload(); }
+            get canEdit(): boolean { return !IsBlank(this.$scope.save); }
+            get saveProcedure(): string { return IfBlank(this.$scope.save, undefined); }
+            save: Function = undefined;
+            get canDelete(): boolean { return !IsBlank(this.$scope.delete); }
+            get deleteProcedure(): string { return IfBlank(this.$scope.delete, undefined); }
+            delete: Function = undefined;
+            get dirty(): boolean { return this.$scope.form.$dirty; }
+        }
+    }
+    export module FormItem {
+        export interface IScope extends angular.IScope {
+            heading: string; form: angular.IFormController;
+        }
+        export class Controller {
+            static $inject: string[] = ["$scope", "$log"];
+            constructor(public $scope: IScope, public $log: angular.ILogService) { }
+            get heading(): string { return IfBlank(this.$scope.heading, undefined); }
+            private validators: Validator.IFactory[] = [];
+            addValidator = (validatorFactory: Validator.IFactory) => {
+                this.validators.push(validatorFactory);
+            }
+            removeValidator = (validatorFactory: Validator.IFactory) => {
+                var i: number = this.validators.indexOf(validatorFactory);
+                if (i >= 0) { this.validators.splice(i, 1); }
+            }
+            get hasError(): boolean {
+                //if (this.$scope.form.$error) {
+                //    return true;
+                //} else {
+                    var hasError: boolean = false;
+                    angular.forEach(this.validators, (validatorFactory: Courier.Validator.IFactory) => {
+                        if (!validatorFactory()) { hasError = true; }
+                        this.$log.debug(hasError);
+                    });
+                    return hasError;
+                //}
+            }
+        }
+    }
+    export module Validator {
+        export interface IFactory { (): boolean; }
+        export interface IScope extends angular.IScope { fn: IFactory; }
+    }
 }
 
-var courier = angular.module("Courier", []);
+var courier = angular.module("Courier", [
+    "ngRoute",
+    "ui.bootstrap",
+    "templates/couForm.html",
+    "templates/couFormItem.html"]);
 
 courier.directive("courier", function () {
     return {
@@ -193,7 +262,8 @@ courier.directive("courier", function () {
             $scope: Courier.Procedure.IScope,
             iElement: angular.IAugmentedJQuery,
             iAttrs: angular.IAttributes,
-            controllers: [Courier.Main.Controller]) { }
+            controllers: [Courier.Main.Controller]) {
+        }
     };
 });
 
@@ -210,7 +280,7 @@ courier.directive("couProcedure", function () {
             controllers: [Courier.Procedure.Controller, Courier.Main.Controller]) {
             controllers[0].initialize();
             controllers[1].addProcedure(controllers[0].alias, controllers[0].execute);
-            $scope.$on("$destroy", function () {
+            $scope.$on("$destroy", () => {
                 controllers[0].model = undefined;
                 controllers[1].removeProcedure(controllers[0].alias);
             });
@@ -231,9 +301,108 @@ courier.directive("couParameter", function () {
             controllers: [Courier.Parameter.Controller, Courier.Procedure.Controller]) {
             controllers[1].addParameter(controllers[0].factory);
             $scope.$on("$destroy", () => { controllers[1].removeParameter(controllers[0].factory); });
-            $scope.$watch(function () { return controllers[0].value; }, function (newValue: any, oldValue: any) {
-                if (newValue !== oldValue) { if (controllers[1].run === "auto") { controllers[1].execute(); } }
-            });
+            if (controllers[1].run === "auto") {
+                $scope.$watch(() => { return controllers[0].value; }, (newValue: any, oldValue: any) => {
+                    if (newValue !== oldValue) { controllers[1].execute(); }
+                });
+            }
         }
     };
 });
+
+courier.directive("couForm", function () {
+    return {
+        restrict: "E",
+        templateUrl: "templates/couForm.html",
+        transclude: true,
+        scope: <Courier.Form.IScope> { heading: "@", subheading: "@", back: "@", save: "@", delete: "@" },
+        controller: Courier.Form.Controller,
+        controllerAs: "ctrl",
+        require: ["couForm", "^courier"],
+        link: function (
+            $scope: Courier.Procedure.IScope,
+            iElement: angular.IAugmentedJQuery,
+            iAttrs: angular.IAttributes,
+            controllers: [Courier.Form.Controller, Courier.Main.Controller]) {
+            if (controllers[0].canEdit) {
+                controllers[0].save = () => {
+                    controllers[1].execute(controllers[0].saveProcedure);
+                };
+            }
+            if (controllers[0].canDelete) {
+                controllers[0].delete = () => {
+                    controllers[1].execute(controllers[0].deleteProcedure);
+                };
+            }
+        }
+    };
+});
+
+courier.directive("couFormItem", function () {
+    return {
+        restrict: "E",
+        templateUrl: "templates/couFormItem.html",
+        transclude: true,
+        scope: <Courier.FormItem.IScope> { heading: "@" },
+        controller: Courier.FormItem.Controller,
+        controllerAs: "ctrl"
+    };
+});
+
+courier.directive("couValidator", function () {
+    return {
+        restrict: "E",
+        scope: { fn: "&", message: "@"; },
+        require: "^couFormItem",
+        link: function (
+            $scope: Courier.Validator.IScope,
+            iElement: angular.IAugmentedJQuery,
+            iAttrs: angular.IAttributes,
+            controller: Courier.FormItem.Controller) {
+            controller.addValidator($scope.fn);
+            $scope.$on("$destroy", () => { controller.removeValidator($scope.fn); });
+        }
+    };
+});
+
+angular.module("templates/couForm.html", []).run(["$templateCache",
+    function ($templateCache: angular.ITemplateCacheService) {
+        $templateCache.put("templates/couForm.html",
+            "<div class=\"panel panel-default form-horizontal\" ng-form=\"form\">" +
+            "<div class=\"panel-heading\">" +
+            "<h4><b>{{ctrl.heading}}</b>" +
+            "<span ng-if=\"ctrl.subheading\"><br /><small>{{ctrl.subheading}}</small></span>" +
+            "</h4>" +
+            "</div>" + // panel-heading
+            "<div class=\"panel-body\" ng-transclude></div>" +
+            "<div class=\"panel-footer clearfix\">" +
+            "<div class=\"pull-right\">" +
+            "<div ng-if=\"form.$pristine\">" +
+            "<div class=\"btn-group\">" +
+            "<button ng-if=\"ctrl.canDelete\" type=\"button\" class=\"btn btn-danger\" ng-click=\"ctrl.delete()\">" +
+            "<i class=\"fa fa-trash-o\"></i> Delete</button>" +
+            "<button type=\"button\" class=\"btn btn-default\" ng-click=\"ctrl.back()\">" +
+            "<i class=\"fa fa-chevron-circle-left\"></i> Back</button>" +
+            "</div>" + // btn-group
+            "</div>" + // $pristine
+            "<div ng-if=\"form.$dirty\">" +
+            "<div class=\"btn-group\">" +
+            "<button type=\"reset\" class=\"btn btn-warning\" ng-click=\"ctrl.undo()\">" +
+            "<i class=\"fa fa-undo\"></i> Undo</button>" +
+            "<button type=\"submit\" class=\"btn btn-primary\" ng-click=\"ctrl.save()\">" +
+            "<i class=\"fa fa-save\"></i> Save</button>" +
+            "</div>" + // btn-group
+            "</div>" + // $dirty
+            "</div>" + // pull-right
+            "</div>" + // panel-footer
+            "</div>"); // panel
+    }]);
+
+angular.module("templates/couFormItem.html", []).run(["$templateCache",
+    function ($templateCache: angular.ITemplateCacheService) {
+        $templateCache.put("templates/couFormItem.html",
+            "<div class=\"form-group\" ng-form=\"form\">" +
+            "<label class=\"control-label col-sm-3\">{{ctrl.heading}} {{ctrl.hasError}}</label>" +
+            "<div class=\"col-sm-9\" ng-transclude></div>" +
+            "</div>"); // form-group
+    }]);

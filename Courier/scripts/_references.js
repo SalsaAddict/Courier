@@ -9,3 +9,5 @@
 /// <reference path="jquery-2.1.4.js" />
 /// <reference path="angular-mocks.js" />
 /// <reference path="angular.min.js" />
+/// <reference path="angular-ui/ui-bootstrap-tpls.min.js" />
+/// <reference path="angular-ui/ui-bootstrap.min.js" />

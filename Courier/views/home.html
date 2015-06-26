@@ -1,9 +1,13 @@
-﻿<div ng-init="Options = {Test: 'Hello'}">
-    <input type="checkbox" ng-model="Options.apiCountries" />
-    <courier test="1">
-        <cou-procedure ng-if="Options.apiCountries" name="apiCountries" model="Options.Countries" run="once">
-            <cou-parameter name="IncidentId"></cou-parameter>
-        </cou-procedure>
-    </courier>
-</div>
-{{Options}}
+﻿<courier>
+    <cou-procedure name="apiCountries" run="once">
+
+    </cou-procedure>
+    <cou-form heading="Hello" subheading="World" save="apiCountries" delete="apiCountries">
+        <cou-form-item heading="Forename">
+            <cou-validator fn="Test()"></cou-validator>
+            <input type="text" ng-model="Test2" />
+        </cou-form-item>
+    </cou-form>
+</courier>
+
+{{Test()}}
