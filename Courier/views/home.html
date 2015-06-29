@@ -4,10 +4,11 @@
     </cou-procedure>
     <cou-form heading="Hello" subheading="World" save="apiCountries" delete="apiCountries">
         <cou-form-item heading="Forename">
-            <cou-validator fn="Test()"></cou-validator>
-            <input type="text" ng-model="Test2" />
+            <input type="email" ng-model="Blah.Name" class="form-control" required />
+            <cou-validator name="myTest" fn="Blah.Name.indexOf('pierre') >= 0" message="Must have Pierre"></cou-validator>
+            <cou-validator name="myTest2" fn="Blah.Name.indexOf('whitespace') >= 0" message="Must have Whitespace"></cou-validator>
         </cou-form-item>
     </cou-form>
 </courier>
 
-{{Test()}}
+

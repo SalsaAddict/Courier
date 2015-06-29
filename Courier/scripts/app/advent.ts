@@ -12,7 +12,8 @@ advent.config(["$routeProvider", function ($routeProvider: angular.route.IRouteP
 }]);
 
 advent.controller("HomeController", ["$scope", function ($scope: any) {
+    $scope.Blah = { Name: "One" };
     $scope.Test = function () {
-        return false;
+        return $scope.Blah.Name === "pierre@whitespace.co.uk";
     };
 }]);

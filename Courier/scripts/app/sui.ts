@@ -214,35 +214,41 @@ module Courier {
         export interface IScope extends angular.IScope {
             heading: string; form: angular.IFormController;
         }
+        export interface IValidatorFunction { (): boolean; }
+        export interface IValidator { fn: IValidatorFunction; message: string; }
         export class Controller {
             static $inject: string[] = ["$scope", "$log"];
             constructor(public $scope: IScope, public $log: angular.ILogService) { }
             get heading(): string { return IfBlank(this.$scope.heading, undefined); }
-            private validators: Validator.IFactory[] = [];
-            addValidator = (validatorFactory: Validator.IFactory) => {
-                this.validators.push(validatorFactory);
+            private validators: IValidator[] = [];
+            addValidator = (validator: IValidator) => {
+                this.validators.push(validator);
             }
-            removeValidator = (validatorFactory: Validator.IFactory) => {
-                var i: number = this.validators.indexOf(validatorFactory);
-                if (i >= 0) { this.validators.splice(i, 1); }
+            removeValidator = (validator: IValidator) => {
+                var i: number = this.validators.indexOf(validator);
+                if (i >= 0) { this.validators.splice(i, 0); }
             }
-            get hasError(): boolean {
-                //if (this.$scope.form.$error) {
-                //    return true;
-                //} else {
-                    var hasError: boolean = false;
-                    angular.forEach(this.validators, (validatorFactory: Courier.Validator.IFactory) => {
-                        if (!validatorFactory()) { hasError = true; }
-                        this.$log.debug(hasError);
+            get validationError(): string {
+                var message: string = undefined, defaultMessage: string = "Invalid entry";
+                angular.forEach(this.$scope.form.$error, (value: any, key: string) => {
+                    if (!IsBlank(message)) { return; }
+                    switch (key) {
+                        case "required": message = "This field is required"; break;
+                        case "email": message = "This is not a valid email address"; break;
+                        case "date": message = "This is not a valid date"; break;
+                        case "number": message = "This is not a valid number"; break;
+                        default: message = defaultMessage; break;
+                    }
+                });
+                if (IsBlank(message)) {
+                    angular.forEach(this.validators, (validator: IValidator, name: string) => {
+                        if (!IsBlank(message)) { return; }
+                        if (!validator.fn()) { message = IfBlank(validator.message, defaultMessage); }
                     });
-                    return hasError;
-                //}
+                }
+                return message;
             }
         }
-    }
-    export module Validator {
-        export interface IFactory { (): boolean; }
-        export interface IScope extends angular.IScope { fn: IFactory; }
     }
 }
 
@@ -343,6 +349,7 @@ courier.directive("couFormItem", function () {
         restrict: "E",
         templateUrl: "templates/couFormItem.html",
         transclude: true,
+        replace: true,
         scope: <Courier.FormItem.IScope> { heading: "@" },
         controller: Courier.FormItem.Controller,
         controllerAs: "ctrl"
@@ -352,15 +359,15 @@ courier.directive("couFormItem", function () {
 courier.directive("couValidator", function () {
     return {
         restrict: "E",
-        scope: { fn: "&", message: "@"; },
+        scope: { fn: "&", message: "@" },
         require: "^couFormItem",
         link: function (
-            $scope: Courier.Validator.IScope,
+            $scope: any,
             iElement: angular.IAugmentedJQuery,
             iAttrs: angular.IAttributes,
             controller: Courier.FormItem.Controller) {
-            controller.addValidator($scope.fn);
-            $scope.$on("$destroy", () => { controller.removeValidator($scope.fn); });
+            controller.addValidator({ fn: $scope.fn, message: $scope.message });
+            $scope.$on("$destroy", () => { controller.removeValidator({ fn: $scope.fn, message: $scope.message }); });
         }
     };
 });
@@ -401,8 +408,11 @@ angular.module("templates/couForm.html", []).run(["$templateCache",
 angular.module("templates/couFormItem.html", []).run(["$templateCache",
     function ($templateCache: angular.ITemplateCacheService) {
         $templateCache.put("templates/couFormItem.html",
-            "<div class=\"form-group\" ng-form=\"form\">" +
-            "<label class=\"control-label col-sm-3\">{{ctrl.heading}} {{ctrl.hasError}}</label>" +
-            "<div class=\"col-sm-9\" ng-transclude></div>" +
+            "<div class=\"form-group\" ng-form=\"form\" ng-class=\"{'has-error': ctrl.validationError}\" title=\"Hello\">" +
+            "<label class=\"control-label col-sm-3\">{{ctrl.heading}}</label>" +
+            "<div class=\"col-sm-9\">" +
+            "<ng-transclude></ng-transclude>" +
+            "<div class=\"help-block\">{{ctrl.validationError}}</div>{{ctrl.validators}}" +
+            "</div> " + // col-sm-9
             "</div>"); // form-group
     }]);

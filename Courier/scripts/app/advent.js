@@ -9,8 +9,9 @@ advent.config(["$routeProvider", function ($routeProvider) {
             .otherwise({ redirectTo: "/home" });
     }]);
 advent.controller("HomeController", ["$scope", function ($scope) {
+        $scope.Blah = { Name: "One" };
         $scope.Test = function () {
-            return false;
+            return $scope.Blah.Name === "pierre@whitespace.co.uk";
         };
     }]);
 //# sourceMappingURL=advent.js.map
